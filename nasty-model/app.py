@@ -2,186 +2,150 @@ import streamlit as st
 import pandas as pd
 import json, os, requests
 from datetime import datetime
-from cards_data import ALL_CARDS
 
 st.set_page_config(page_title="The Nasty Model", page_icon="🃏", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.stApp { background: #0a0c12; color: #e2e8f0; }
-.block-container { padding: 1.5rem 2rem 3rem; max-width: 1400px; }
-
-/* Sidebar */
-section[data-testid="stSidebar"] { background: #0d0f1c !important; border-right: 1px solid #1a1f35; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body,[class*="css"]{font-family:'Inter',sans-serif}
+.stApp{background:#0a0c12;color:#e2e8f0}
+.block-container{padding:1.5rem 2rem 3rem;max-width:1300px}
+section[data-testid="stSidebar"]{background:#0d0f1c!important;border-right:1px solid #1a1f35}
 section[data-testid="stSidebar"] label,
-section[data-testid="stSidebar"] p { color: #4a5568 !important; font-size: 11px !important; }
-section[data-testid="stSidebar"] h3 { color: #e2e8f0 !important; }
-section[data-testid="stSidebar"] .stSelectbox > div > div,
-section[data-testid="stSidebar"] .stTextInput > div > div > input,
-section[data-testid="stSidebar"] .stNumberInput > div > div > input {
-  background: #12152a !important; border: 1px solid #1a1f35 !important;
-  color: #e2e8f0 !important; border-radius: 8px !important; font-size: 13px !important;
-}
-.stButton > button {
-  background: #12152a; color: #64748b; border: 1px solid #1a1f35;
-  border-radius: 8px; font-size: 12px; font-weight: 500; width: 100%;
-}
-.stButton > button:hover { background: #1a1f35; color: #e2e8f0; }
-.stButton > button[kind="primary"] {
-  background: linear-gradient(135deg, #06b6d4, #0891b2);
-  border: none; color: #fff; font-weight: 700;
-}
-[data-testid="stExpander"] { background: #0d0f1c; border: 1px solid #1a1f35; border-radius: 12px; }
-hr { border: none; border-top: 1px solid #1a1f35; }
+section[data-testid="stSidebar"] p{color:#4a5568!important;font-size:11px!important}
+section[data-testid="stSidebar"] .stSelectbox>div>div,
+section[data-testid="stSidebar"] .stTextInput>div>div>input,
+section[data-testid="stSidebar"] .stNumberInput>div>div>input{background:#12152a!important;border:1px solid #1a1f35!important;color:#e2e8f0!important;border-radius:8px!important;font-size:13px!important}
+.stButton>button{background:#12152a;color:#64748b;border:1px solid #1a1f35;border-radius:8px;font-size:12px;font-weight:500;width:100%}
+.stButton>button:hover{background:#1a1f35;color:#e2e8f0}
+.stButton>button[kind="primary"]{background:linear-gradient(135deg,#06b6d4,#0891b2);border:none;color:#fff;font-weight:700}
+[data-testid="stExpander"]{background:#0d0f1c;border:1px solid #1a1f35;border-radius:12px}
+hr{border:none;border-top:1px solid #1a1f35}
 
-/* Card item — exact Collectr style */
-.card-item {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 16px 20px;
-  background: #0d0f1c;
-  border-radius: 14px;
-  margin-bottom: 8px;
-  border: 1px solid #1a1f35;
-  transition: border-color .15s, background .15s;
-}
-.card-item:hover { background: #0f1222; border-color: #2a3050; }
-
-.card-thumb {
-  width: 70px;
-  height: 98px;
-  object-fit: cover;
-  border-radius: 7px;
-  flex-shrink: 0;
-  box-shadow: 0 4px 16px rgba(0,0,0,.6);
-}
-.card-thumb-ph {
-  width: 70px; height: 98px; border-radius: 7px; flex-shrink: 0;
-  background: #12152a; display: flex; align-items: center; justify-content: center;
-  font-size: 28px; border: 1px solid #1a1f35;
-}
-.card-info { flex: 1; min-width: 0; }
-.card-name {
-  font-size: 17px; font-weight: 700; color: #f1f5f9;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  margin-bottom: 4px;
-}
-.card-set-link {
-  font-size: 12px; color: #06b6d4; font-weight: 500;
-  text-decoration: none; display: block; margin-bottom: 3px;
-}
-.card-meta-line { font-size: 12px; color: #4a5568; line-height: 1.6; }
-
-.card-price-block { text-align: right; flex-shrink: 0; min-width: 160px; }
-.card-price-main {
-  font-size: 22px; font-weight: 800; color: #10b981;
-  display: flex; align-items: center; justify-content: flex-end; gap: 6px;
-}
-.price-arrow { font-size: 14px; }
-.price-arrow.up { color: #10b981; }
-.price-arrow.dn { color: #ef4444; }
-.card-price-change { font-size: 13px; font-weight: 500; margin-top: 2px; }
-.chg-up { color: #10b981; }
-.chg-dn { color: #ef4444; }
-.chg-fl { color: #4a5568; }
-.card-price-qty { font-size: 11px; color: #334155; margin-top: 4px; }
-
-.badge-pump { display:inline-block; font-size:9px; padding:2px 7px; border-radius:8px; font-weight:700; margin-left:6px; vertical-align:middle; background:rgba(239,68,68,.15); color:#ef4444; border:1px solid rgba(239,68,68,.25); }
-.badge-show { display:inline-block; font-size:9px; padding:2px 7px; border-radius:8px; font-weight:700; margin-left:6px; vertical-align:middle; background:rgba(6,182,212,.12); color:#06b6d4; border:1px solid rgba(6,182,212,.25); }
-
-.pill { display:inline-block; font-size:10px; padding:2px 7px; border-radius:10px; font-weight:600; margin-right:3px; }
-.p-sir { background:rgba(139,92,246,.15); color:#a78bfa; border:1px solid rgba(139,92,246,.2); }
-.p-alt { background:rgba(59,130,246,.15); color:#60a5fa; border:1px solid rgba(59,130,246,.2); }
-.p-ir  { background:rgba(20,184,166,.15); color:#2dd4bf; border:1px solid rgba(20,184,166,.2); }
-.p-shv { background:rgba(245,158,11,.15); color:#fbbf24; border:1px solid rgba(245,158,11,.2); }
-.p-fa  { background:rgba(100,116,139,.15); color:#64748b; border:1px solid rgba(100,116,139,.2); }
-.p-rr  { background:rgba(239,68,68,.15); color:#f87171; border:1px solid rgba(239,68,68,.2); }
-.p-gold{ background:rgba(234,179,8,.15); color:#facc15; border:1px solid rgba(234,179,8,.2); }
-.p-def { background:rgba(71,85,105,.12); color:#475569; border:1px solid rgba(71,85,105,.18); }
-
-.show-banner {
-  background: linear-gradient(135deg, #0a1a2e, #0d1f3c);
-  border: 1px solid #0891b2; border-radius: 14px; padding: 14px 20px;
-  display: flex; align-items: center; gap: 16px; margin-bottom: 1rem;
-}
-.sb-section {
-  font-size: 10px; font-weight: 700; color: #2d3748 !important;
-  text-transform: uppercase; letter-spacing: .08em;
-  margin: 14px 0 5px; display: block;
-}
-.section-title {
-  font-size: 20px; font-weight: 800; color: #f1f5f9; letter-spacing: -.02em;
-}
-.section-sub { font-size: 12px; color: #334155; margin-left: 10px; }
+.card-item{display:flex;align-items:center;gap:18px;padding:16px 20px;background:#0d0f1c;border-radius:14px;margin-bottom:8px;border:1px solid #1a1f35;transition:border-color .15s,background .15s}
+.card-item:hover{background:#0f1222;border-color:#2a3050}
+.card-thumb{width:68px;height:95px;object-fit:cover;border-radius:7px;flex-shrink:0;box-shadow:0 4px 16px rgba(0,0,0,.6)}
+.card-thumb-ph{width:68px;height:95px;border-radius:7px;flex-shrink:0;background:#12152a;display:flex;align-items:center;justify-content:center;font-size:26px;border:1px solid #1a1f35}
+.card-info{flex:1;min-width:0}
+.card-name{font-size:17px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+.card-set-line{font-size:12px;color:#06b6d4;font-weight:500;margin-bottom:3px}
+.card-meta{font-size:11px;color:#4a5568;line-height:1.7}
+.card-price-block{text-align:right;flex-shrink:0;min-width:170px}
+.price-main{font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:flex-end;gap:5px}
+.price-change{font-size:13px;font-weight:600;margin-top:2px}
+.price-period{font-size:11px;color:#334155;margin-top:4px}
+.up{color:#10b981}
+.dn{color:#ef4444}
+.fl{color:#4a5568}
+.pill{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;margin-right:3px}
+.p-sir{background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.2)}
+.p-alt{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.2)}
+.p-ir{background:rgba(20,184,166,.15);color:#2dd4bf;border:1px solid rgba(20,184,166,.2)}
+.p-shv{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.2)}
+.p-fa{background:rgba(100,116,139,.15);color:#64748b;border:1px solid rgba(100,116,139,.2)}
+.p-rr{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.2)}
+.p-gold{background:rgba(234,179,8,.15);color:#facc15;border:1px solid rgba(234,179,8,.2)}
+.p-def{background:rgba(71,85,105,.12);color:#475569;border:1px solid rgba(71,85,105,.18)}
+.badge-pump{font-size:9px;padding:2px 7px;border-radius:8px;font-weight:700;margin-left:6px;vertical-align:middle;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.25)}
+.badge-show{font-size:9px;padding:2px 7px;border-radius:8px;font-weight:700;margin-left:6px;vertical-align:middle;background:rgba(6,182,212,.12);color:#06b6d4;border:1px solid rgba(6,182,212,.25)}
+.show-banner{background:linear-gradient(135deg,#0a1a2e,#0d1f3c);border:1px solid #0891b2;border-radius:14px;padding:14px 20px;display:flex;align-items:center;gap:16px;margin-bottom:1rem}
+.sb-section{font-size:10px;font-weight:700;color:#2d3748!important;text-transform:uppercase;letter-spacing:.08em;margin:14px 0 5px;display:block}
+.stat-box{text-align:center;background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.2);border-radius:10px;padding:8px 18px}
+.stat-v{font-size:22px;font-weight:800;color:#06b6d4}
+.stat-l{font-size:10px;color:#0e7490;text-transform:uppercase;letter-spacing:.06em}
 </style>
 """, unsafe_allow_html=True)
 
 USD_CAD    = 1.364
-CACHE_FILE = "data/price_cache.json"
-DATA_FILE  = "data/cards.json"
+CACHE_FILE = "data/tcgdex_cache.json"
 
+# TCGdex set ID mapping
 SETS = {
-    "XY":{"name":"XY Base","year":2014,"status":"oop","tcg_id":"xy1"},
-    "FLF":{"name":"Flashfire","year":2014,"status":"oop","tcg_id":"xy2"},
-    "ROS":{"name":"Roaring Skies","year":2015,"status":"oop","tcg_id":"xy6"},
-    "AOR":{"name":"Ancient Origins","year":2015,"status":"oop","tcg_id":"xy7"},
-    "BKT":{"name":"BREAKthrough","year":2015,"status":"oop","tcg_id":"xy8"},
-    "BKP":{"name":"BREAKpoint","year":2016,"status":"oop","tcg_id":"xy9"},
-    "FCO":{"name":"Fates Collide","year":2016,"status":"oop","tcg_id":"xy10"},
-    "STS":{"name":"Steam Siege","year":2016,"status":"oop","tcg_id":"xy11"},
-    "EVO":{"name":"Evolutions","year":2016,"status":"oop","tcg_id":"xy12"},
-    "SUM":{"name":"Sun & Moon","year":2017,"status":"oop","tcg_id":"sm1"},
-    "GRI":{"name":"Guardians Rising","year":2017,"status":"oop","tcg_id":"sm2"},
-    "BUS":{"name":"Burning Shadows","year":2017,"status":"oop","tcg_id":"sm3"},
-    "SHL":{"name":"Shining Legends","year":2017,"status":"oop","tcg_id":"sm35"},
-    "CRI":{"name":"Crimson Invasion","year":2017,"status":"oop","tcg_id":"sm4"},
-    "UPR":{"name":"Ultra Prism","year":2018,"status":"oop","tcg_id":"sm5"},
-    "FLI":{"name":"Forbidden Light","year":2018,"status":"oop","tcg_id":"sm6"},
-    "CES":{"name":"Celestial Storm","year":2018,"status":"oop","tcg_id":"sm7"},
-    "LOT":{"name":"Lost Thunder","year":2018,"status":"oop","tcg_id":"sm8"},
-    "TEU":{"name":"Team Up","year":2019,"status":"oop","tcg_id":"sm9"},
-    "UNB":{"name":"Unbroken Bonds","year":2019,"status":"oop","tcg_id":"sm10"},
-    "UNM":{"name":"Unified Minds","year":2019,"status":"oop","tcg_id":"sm11"},
-    "HIF":{"name":"Hidden Fates","year":2019,"status":"oop","tcg_id":"hif"},
-    "CEC":{"name":"Cosmic Eclipse","year":2019,"status":"oop","tcg_id":"sm12"},
-    "RCL":{"name":"Rebel Clash","year":2020,"status":"oop","tcg_id":"swsh2"},
-    "DAA":{"name":"Darkness Ablaze","year":2020,"status":"oop","tcg_id":"swsh3"},
-    "VIV":{"name":"Vivid Voltage","year":2020,"status":"oop","tcg_id":"swsh4"},
-    "SHF":{"name":"Shining Fates","year":2021,"status":"oop","tcg_id":"shf"},
-    "BST":{"name":"Battle Styles","year":2021,"status":"oop","tcg_id":"swsh5"},
-    "CRE":{"name":"Chilling Reign","year":2021,"status":"oop","tcg_id":"swsh6"},
-    "EVS":{"name":"Evolving Skies","year":2021,"status":"oop","tcg_id":"swsh7"},
-    "FST":{"name":"Fusion Strike","year":2021,"status":"oop","tcg_id":"swsh8"},
-    "CEL":{"name":"Celebrations","year":2021,"status":"oop","tcg_id":"cel25"},
-    "BRS":{"name":"Brilliant Stars","year":2022,"status":"oop","tcg_id":"swsh9"},
-    "ASR":{"name":"Astral Radiance","year":2022,"status":"oop","tcg_id":"swsh10"},
-    "PGO":{"name":"Pokémon GO","year":2022,"status":"oop","tcg_id":"pgo"},
-    "LOR":{"name":"Lost Origin","year":2022,"status":"oop","tcg_id":"swsh11"},
-    "SIT":{"name":"Silver Tempest","year":2022,"status":"oop","tcg_id":"swsh12"},
-    "CRZ":{"name":"Crown Zenith","year":2023,"status":"oop","tcg_id":"swsh125"},
-    "SVI":{"name":"Scarlet & Violet","year":2023,"status":"oop","tcg_id":"sv1"},
-    "PAL":{"name":"Paldea Evolved","year":2023,"status":"oop","tcg_id":"sv2"},
-    "OBF":{"name":"Obsidian Flames","year":2023,"status":"oop","tcg_id":"sv3"},
-    "MEW":{"name":"Pokémon 151","year":2023,"status":"oop","tcg_id":"sv3pt5"},
-    "PAR":{"name":"Paradox Rift","year":2023,"status":"oop","tcg_id":"sv4"},
-    "PAF":{"name":"Paldean Fates","year":2024,"status":"oop","tcg_id":"sv4pt5"},
-    "TEF":{"name":"Temporal Forces","year":2024,"status":"oop","tcg_id":"sv5"},
-    "TWM":{"name":"Twilight Masquerade","year":2024,"status":"oop","tcg_id":"sv6"},
-    "SFA":{"name":"Shrouded Fable","year":2024,"status":"oop","tcg_id":"sv6pt5"},
-    "SCR":{"name":"Stellar Crown","year":2024,"status":"oop","tcg_id":"sv7"},
-    "SSP":{"name":"Surging Sparks","year":2024,"status":"soon","tcg_id":"sv8"},
-    "PRE":{"name":"Prismatic Evolutions","year":2025,"status":"oop","tcg_id":"sv8pt5"},
-    "JTG":{"name":"Journey Together","year":2025,"status":"soon","tcg_id":"sv9"},
-    "DRI":{"name":"Destined Rivals","year":2025,"status":"in","tcg_id":"sv9pt5"},
-    "MEG":{"name":"Mega Evolution","year":2025,"status":"in","tcg_id":"sv10"},
-    "PHF":{"name":"Phantasmal Flames","year":2025,"status":"in","tcg_id":"sv10pt5"},
-    "ASH":{"name":"Ascended Heroes","year":2026,"status":"in","tcg_id":"sv11"},
-    "PFO":{"name":"Perfect Order","year":2026,"status":"in","tcg_id":"sv11pt5"},
-    "CRS":{"name":"Chaos Rising","year":2026,"status":"in","tcg_id":"sv12"},
+    "xy1":{"name":"XY Base","code":"XY","year":2014},
+    "xy2":{"name":"Flashfire","code":"FLF","year":2014},
+    "xy6":{"name":"Roaring Skies","code":"ROS","year":2015},
+    "xy7":{"name":"Ancient Origins","code":"AOR","year":2015},
+    "xy8":{"name":"BREAKthrough","code":"BKT","year":2015},
+    "xy9":{"name":"BREAKpoint","code":"BKP","year":2016},
+    "xy10":{"name":"Fates Collide","code":"FCO","year":2016},
+    "xy11":{"name":"Steam Siege","code":"STS","year":2016},
+    "xy12":{"name":"Evolutions","code":"EVO","year":2016},
+    "sm1":{"name":"Sun & Moon","code":"SUM","year":2017},
+    "sm2":{"name":"Guardians Rising","code":"GRI","year":2017},
+    "sm3":{"name":"Burning Shadows","code":"BUS","year":2017},
+    "sm35":{"name":"Shining Legends","code":"SHL","year":2017},
+    "sm4":{"name":"Crimson Invasion","code":"CRI","year":2017},
+    "sm5":{"name":"Ultra Prism","code":"UPR","year":2018},
+    "sm6":{"name":"Forbidden Light","code":"FLI","year":2018},
+    "sm7":{"name":"Celestial Storm","code":"CES","year":2018},
+    "sm8":{"name":"Lost Thunder","code":"LOT","year":2018},
+    "sm9":{"name":"Team Up","code":"TEU","year":2019},
+    "sm10":{"name":"Unbroken Bonds","code":"UNB","year":2019},
+    "sm11":{"name":"Unified Minds","code":"UNM","year":2019},
+    "hif":{"name":"Hidden Fates","code":"HIF","year":2019},
+    "sm12":{"name":"Cosmic Eclipse","code":"CEC","year":2019},
+    "swsh2":{"name":"Rebel Clash","code":"RCL","year":2020},
+    "swsh3":{"name":"Darkness Ablaze","code":"DAA","year":2020},
+    "swsh4":{"name":"Vivid Voltage","code":"VIV","year":2020},
+    "shf":{"name":"Shining Fates","code":"SHF","year":2021},
+    "swsh5":{"name":"Battle Styles","code":"BST","year":2021},
+    "swsh6":{"name":"Chilling Reign","code":"CRE","year":2021},
+    "swsh7":{"name":"Evolving Skies","code":"EVS","year":2021},
+    "swsh8":{"name":"Fusion Strike","code":"FST","year":2021},
+    "cel25":{"name":"Celebrations","code":"CEL","year":2021},
+    "swsh9":{"name":"Brilliant Stars","code":"BRS","year":2022},
+    "swsh10":{"name":"Astral Radiance","code":"ASR","year":2022},
+    "pgo":{"name":"Pokémon GO","code":"PGO","year":2022},
+    "swsh11":{"name":"Lost Origin","code":"LOR","year":2022},
+    "swsh12":{"name":"Silver Tempest","code":"SIT","year":2022},
+    "swsh125":{"name":"Crown Zenith","code":"CRZ","year":2023},
+    "sv1":{"name":"Scarlet & Violet","code":"SVI","year":2023},
+    "sv2":{"name":"Paldea Evolved","code":"PAL","year":2023},
+    "sv3":{"name":"Obsidian Flames","code":"OBF","year":2023},
+    "sv3pt5":{"name":"Pokémon 151","code":"MEW","year":2023},
+    "sv4":{"name":"Paradox Rift","code":"PAR","year":2023},
+    "sv4pt5":{"name":"Paldean Fates","code":"PAF","year":2024},
+    "sv5":{"name":"Temporal Forces","code":"TEF","year":2024},
+    "sv6":{"name":"Twilight Masquerade","code":"TWM","year":2024},
+    "sv6pt5":{"name":"Shrouded Fable","code":"SFA","year":2024},
+    "sv7":{"name":"Stellar Crown","code":"SCR","year":2024},
+    "sv8":{"name":"Surging Sparks","code":"SSP","year":2024},
+    "sv8pt5":{"name":"Prismatic Evolutions","code":"PRE","year":2025},
+    "sv9":{"name":"Journey Together","code":"JTG","year":2025},
+    "sv9pt5":{"name":"Destined Rivals","code":"DRI","year":2025},
+    "sv10":{"name":"Mega Evolution","code":"MEG","year":2025},
+    "sv10pt5":{"name":"Phantasmal Flames","code":"PHF","year":2025},
+    "sv11":{"name":"Ascended Heroes","code":"ASH","year":2026},
+    "sv11pt5":{"name":"Perfect Order","code":"PFO","year":2026},
+    "sv12":{"name":"Chaos Rising","code":"CRS","year":2026},
+}
+
+# Rarities to track — high-value cards only
+TARGET_RARITIES = {
+    "Special Illustration Rare", "Illustration Rare",
+    "Hyper Rare", "Ultra Rare", "Secret Rare",
+    "Shiny Rare", "Shiny Ultra Rare",
+    "Double Rare", "Trainer Gallery Rare Holo",
+    "Radiant Rare", "LEGEND", "Gold Rare",
+    "Amazing Rare", "Promo"
+}
+
+RARITY_DISPLAY = {
+    "Special Illustration Rare": "SIR",
+    "Illustration Rare": "IR",
+    "Hyper Rare": "HR",
+    "Ultra Rare": "UR",
+    "Secret Rare": "Secret",
+    "Shiny Rare": "Shiny",
+    "Shiny Ultra Rare": "SHV",
+    "Double Rare": "RR",
+    "Trainer Gallery Rare Holo": "TG",
+    "Radiant Rare": "Radiant",
+    "Gold Rare": "Gold",
+    "Amazing Rare": "AR",
+    "Promo": "Promo",
 }
 
 def load_json(p, d):
@@ -193,46 +157,102 @@ def save_json(p, d):
     os.makedirs(os.path.dirname(p), exist_ok=True)
     with open(p, "w") as f: json.dump(d, f, indent=2, ensure_ascii=False)
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_card_api(name, set_code):
-    tcg_id = SETS.get(set_code, {}).get("tcg_id", "")
-    if not tcg_id: return None
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_set_cards(set_id):
+    """Fetch ALL cards for a set from TCGdex — includes prices + images, no API key"""
     try:
-        clean = name.split("(")[0].strip()
-        for suffix in [" SIR"," Alt Art"," IR"," Rainbow"," Full Art"," Shiny"," VMAX"," VSTAR"," ex"," EX"," GX"]:
-            clean = clean.replace(suffix,"").strip()
-        r = requests.get(f'https://api.pokemontcg.io/v2/cards?q=name:"{clean}" set.id:{tcg_id}&pageSize=8', timeout=8)
+        url = f"https://api.tcgdex.net/v2/en/sets/{set_id}"
+        r = requests.get(url, timeout=15, headers={"User-Agent": "NastyModel/2.0"})
         if r.status_code == 200:
-            cards = r.json().get("data", [])
-            if cards: return cards[0]
+            data = r.json()
+            cards = data.get("cards", [])
+            # Fetch each card detail for pricing
+            results = []
+            for card_brief in cards:
+                card_id = card_brief.get("id", "")
+                try:
+                    cr = requests.get(f"https://api.tcgdex.net/v2/en/cards/{card_id}", timeout=8,
+                                      headers={"User-Agent": "NastyModel/2.0"})
+                    if cr.status_code == 200:
+                        results.append(cr.json())
+                except: pass
+            return results
+    except: pass
+    return []
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_single_card(card_id):
+    """Fetch a single card by TCGdex ID"""
+    try:
+        r = requests.get(f"https://api.tcgdex.net/v2/en/cards/{card_id}", timeout=8,
+                         headers={"User-Agent": "NastyModel/2.0"})
+        if r.status_code == 200:
+            return r.json()
     except: pass
     return None
 
-def get_tcg_price(ac):
-    if not ac: return None
-    prices = ac.get("tcgplayer", {}).get("prices", {})
-    for pt in ["holofoil","1stEditionHolofoil","reverseHolofoil","normal","unlimitedHolofoil"]:
-        p = prices.get(pt, {}); m = p.get("market") or p.get("mid")
-        if m and m > 0: return round(m * USD_CAD, 2)
-    return None
+def extract_price_and_changes(card_data):
+    """Extract price + historical changes from TCGdex response"""
+    pricing = card_data.get("pricing", {})
+    tcgp    = pricing.get("tcgplayer", {})
+    cm      = pricing.get("cardmarket", {})
 
-def get_img(ac):
-    if ac: return ac.get("images", {}).get("large") or ac.get("images", {}).get("small")
-    return None
+    # TCGPlayer USD → CAD
+    price_usd = None
+    for variant in ["holo","reverseHolo","normal","1stEditionHolo"]:
+        v = tcgp.get(variant, {})
+        mp = v.get("marketPrice") or v.get("midPrice")
+        if mp and mp > 0:
+            price_usd = mp
+            break
 
-def get_gain(c, days):
-    past = c.get(f"p{days}", c.get("price", 0))
-    if past and past > 0: return round((c["price"]-past)/past*100, 2), round(c["price"]-past, 2)
-    return 0.0, 0.0
+    # Cardmarket EUR (fallback)
+    if not price_usd:
+        trend = cm.get("trend") or cm.get("avg")
+        if trend and trend > 0:
+            price_usd = trend * 1.10  # rough EUR→USD
+
+    if not price_usd:
+        return None
+
+    price_cad = round(price_usd * USD_CAD, 2)
+
+    # Historical: cardmarket avg1/avg7/avg30 → calculate % changes
+    avg1  = cm.get("avg1",  cm.get("avg1-holo"))
+    avg7  = cm.get("avg7",  cm.get("avg7-holo"))
+    avg30 = cm.get("avg30", cm.get("avg30-holo"))
+
+    def pct(past_eur):
+        if past_eur and past_eur > 0:
+            past_cad = past_eur * 1.10 * USD_CAD
+            return round((price_cad - past_cad) / past_cad * 100, 2)
+        return 0.0
+
+    return {
+        "price":  price_cad,
+        "p1":     round(avg1  * 1.10 * USD_CAD, 2) if avg1  else price_cad,
+        "p7":     round(avg7  * 1.10 * USD_CAD, 2) if avg7  else price_cad,
+        "p30":    round(avg30 * 1.10 * USD_CAD, 2) if avg30 else price_cad,
+        "chg1":   pct(avg1),
+        "chg7":   pct(avg7),
+        "chg30":  pct(avg30),
+    }
+
+def get_card_image(card_data):
+    img = card_data.get("image", "")
+    if img:
+        return img + "/high.png"
+    return ""
 
 def rar_pill(r):
-    m = {"SIR":"p-sir","ALT":"p-alt","IR":"p-ir","GG":"p-alt","SHV":"p-shv",
-         "SHINING":"p-shv","CLASSIC":"p-gold","FA":"p-fa","RR":"p-rr","GOLD":"p-gold"}
+    m = {"SIR":"p-sir","IR":"p-ir","Shiny":"p-shv","SHV":"p-shv","HR":"p-rr",
+         "UR":"p-alt","Secret":"p-gold","RR":"p-alt","Gold":"p-gold","TG":"p-fa"}
     return f'<span class="pill {m.get(r,"p-def")}">{r}</span>'
 
 # ── Session ──
-if "cards"     not in st.session_state: st.session_state.cards = load_json(DATA_FILE, ALL_CARDS.copy())
-if "api_cache" not in st.session_state: st.session_state.api_cache = load_json(CACHE_FILE, {})
+if "api_cache"   not in st.session_state: st.session_state.api_cache   = load_json(CACHE_FILE, {})
+if "loaded_sets" not in st.session_state: st.session_state.loaded_sets = set()
+if "all_cards"   not in st.session_state: st.session_state.all_cards   = []
 
 # ════ SIDEBAR ════
 with st.sidebar:
@@ -240,245 +260,212 @@ with st.sidebar:
     st.markdown("---")
 
     show_day = st.toggle("⚡ Mode Show Day", value=False,
-        help="Affiche seulement les cartes dont le gain % est ≥ 10% sur la période choisie")
+        help="Affiche seulement les cartes avec gain ≥ 10% sur la période choisie")
 
-    st.markdown('<span class="sb-section">Trier & afficher par</span>', unsafe_allow_html=True)
-    period_map  = {"24 heures":1, "3 jours":3, "7 jours":7, "1 mois":30, "3 mois":90, "6 mois":180}
-    period_sel  = st.selectbox("", list(period_map.keys()), index=2, label_visibility="collapsed")
-    days        = period_map[period_sel]
+    st.markdown('<span class="sb-section">Période & tri</span>', unsafe_allow_html=True)
+    period_map  = {"24 heures": "chg1", "7 jours": "chg7", "30 jours": "chg30"}
+    period_lbl_map = {"24 heures":"24h","7 jours":"7j","30 jours":"1M"}
+    period_sel  = st.selectbox("", list(period_map.keys()), index=1, label_visibility="collapsed")
+    chg_key     = period_map[period_sel]
+    period_lbl  = period_lbl_map[period_sel]
 
-    st.markdown('<span class="sb-section">Set</span>', unsafe_allow_html=True)
-    set_opts    = ["Tous les sets"] + [f"{v['name']} ({k})" for k,v in SETS.items()]
+    st.markdown('<span class="sb-section">Set à charger</span>', unsafe_allow_html=True)
+    set_opts    = ["Tous les sets chargés"] + [f"{v['name']} ({k})" for k,v in SETS.items()]
     set_filter  = st.selectbox("", set_opts, label_visibility="collapsed")
+
+    st.markdown('<span class="sb-section">Charger un set</span>', unsafe_allow_html=True)
+    sets_to_load = st.multiselect(
+        "", [f"{v['name']} ({k})" for k,v in SETS.items()],
+        default=["Surging Sparks (sv8)","Prismatic Evolutions (sv8pt5)","Ascended Heroes (sv11)"],
+        label_visibility="collapsed"
+    )
 
     st.markdown('<span class="sb-section">Prix C$</span>', unsafe_allow_html=True)
     col_a, col_b = st.columns(2)
-    with col_a: prix_min = st.number_input("Min", min_value=0, value=0, step=5, label_visibility="visible")
-    with col_b: prix_max = st.number_input("Max", min_value=0, value=5000, step=25, label_visibility="visible")
+    with col_a: prix_min = st.number_input("Min", min_value=0, value=0, step=5)
+    with col_b: prix_max = st.number_input("Max", min_value=0, value=5000, step=25)
 
     st.markdown('<span class="sb-section">Recherche</span>', unsafe_allow_html=True)
-    search = st.text_input("", placeholder="Nom de la carte...", label_visibility="collapsed")
+    search = st.text_input("", placeholder="Nom...", label_visibility="collapsed")
 
     st.markdown("---")
-    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-bottom:8px">{len(st.session_state.cards)} cartes dans la base</div>', unsafe_allow_html=True)
-    if st.button("🔄  Refresh données live", type="primary"):
-        st.cache_data.clear(); st.session_state.api_cache = {}
-        save_json(CACHE_FILE, {}); st.rerun()
+    if st.button("📥  Charger les sets sélectionnés", type="primary"):
+        for s_opt in sets_to_load:
+            sid = s_opt.split("(")[-1].rstrip(")")
+            if sid not in st.session_state.loaded_sets:
+                with st.spinner(f"Chargement {SETS[sid]['name']}..."):
+                    cards = fetch_set_cards(sid)
+                    for c in cards:
+                        rarity_full = c.get("rarity","")
+                        if rarity_full in TARGET_RARITIES:
+                            price_data = extract_price_and_changes(c)
+                            if price_data:
+                                st.session_state.all_cards.append({
+                                    "id":       c.get("id",""),
+                                    "name":     c.get("name",""),
+                                    "set_id":   sid,
+                                    "set_name": SETS[sid]["name"],
+                                    "set_year": SETS[sid]["year"],
+                                    "rarity":   RARITY_DISPLAY.get(rarity_full, rarity_full),
+                                    "number":   c.get("localId",""),
+                                    "img":      get_card_image(c),
+                                    **price_data
+                                })
+                    st.session_state.loaded_sets.add(sid)
+        save_json(CACHE_FILE, {"cards": st.session_state.all_cards, "sets": list(st.session_state.loaded_sets)})
+        st.rerun()
+
+    if st.button("🔄  Vider & recharger"):
+        st.session_state.all_cards   = []
+        st.session_state.loaded_sets = set()
+        fetch_set_cards.clear()
+        save_json(CACHE_FILE, {})
+        st.rerun()
+
+    loaded_count = len(st.session_state.loaded_sets)
+    card_count   = len(st.session_state.all_cards)
+    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-top:4px">{loaded_count} sets chargés · {card_count} cartes</div>', unsafe_allow_html=True)
+
+# Load from disk cache on startup
+if not st.session_state.all_cards and os.path.exists(CACHE_FILE):
+    cached = load_json(CACHE_FILE, {})
+    if "cards" in cached:
+        st.session_state.all_cards   = cached["cards"]
+        st.session_state.loaded_sets = set(cached.get("sets", []))
 
 # ════ MAIN ════
-
-# Header
 st.markdown(f"""
 <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 0 1.25rem;border-bottom:1px solid #1a1f35;margin-bottom:1.25rem">
   <div style="display:flex;align-items:center;gap:12px">
     <div style="width:40px;height:40px;background:linear-gradient(135deg,#06b6d4,#0891b2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px">🃏</div>
     <div>
       <div style="font-size:20px;font-weight:800;color:#f1f5f9;letter-spacing:-.03em">The Nasty Model</div>
-      <div style="font-size:11px;color:#2d3748">market intelligence · pokémon TCG · C$</div>
+      <div style="font-size:11px;color:#2d3748">prix live TCGdex · C$ · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:8px">
+  <div style="display:flex;gap:8px">
     <div style="background:#0d1520;border:1px solid #0891b2;color:#06b6d4;font-size:11px;padding:4px 10px;border-radius:20px;font-weight:600">🇨🇦 CAD</div>
-    <div style="background:#0d1520;border:1px solid #1a1f35;color:#334155;font-size:11px;padding:4px 10px;border-radius:20px">{datetime.now().strftime("%Y-%m-%d")}</div>
+    <div style="background:#0d1520;border:1px solid #1a1f35;color:#334155;font-size:11px;padding:4px 10px;border-radius:20px">TCGdex · no API key</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Fetch
-prog = st.empty()
-rows = []
-for idx, c in enumerate(st.session_state.cards):
-    key = f"{c['id']}_{c['set']}"
-    if key not in st.session_state.api_cache:
-        prog.markdown(f'<div style="color:#2d3748;font-size:12px">⏳ Chargement {idx+1}/{len(st.session_state.cards)}...</div>', unsafe_allow_html=True)
-        ac = fetch_card_api(c["id"], c["set"])
-        st.session_state.api_cache[key] = {"img": get_img(ac), "live_price": get_tcg_price(ac), "ts": datetime.now().isoformat()}
-        save_json(CACHE_FILE, st.session_state.api_cache)
-    cached = st.session_state.api_cache[key]
-    price  = cached.get("live_price") or c.get("price", 0)
-    if price <= 0: price = c.get("price", 0)
-    c2 = {**c, "price": price}
-    gp, gc   = get_gain(c2, days)
-    gp1, _   = get_gain(c2, 1)
-    gp7, _   = get_gain(c2, 7)
-    gp30, _  = get_gain(c2, 30)
-    rows.append({**c2, "img_url": cached.get("img",""),
-                 "gain_pct": gp, "gain_cad": gc,
-                 "gp1": gp1, "gp7": gp7, "gp30": gp30,
-                 "set_name": SETS.get(c["set"],{}).get("name", c["set"]),
-                 "live": cached.get("live_price") is not None})
-prog.empty()
-df = pd.DataFrame(rows)
+if not st.session_state.all_cards:
+    st.markdown("""
+    <div style="text-align:center;padding:5rem 2rem;color:#334155">
+      <div style="font-size:48px;margin-bottom:1rem">🃏</div>
+      <div style="font-size:18px;font-weight:600;color:#64748b;margin-bottom:8px">Aucune carte chargée</div>
+      <div style="font-size:14px">Sélectionne des sets dans la sidebar et clique <strong style="color:#06b6d4">Charger les sets</strong></div>
+      <div style="font-size:12px;color:#2d3748;margin-top:8px">Les prix viennent de TCGdex (TCGPlayer + Cardmarket) · aucune clé API requise</div>
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    df = pd.DataFrame(st.session_state.all_cards)
 
-# Filters
-if show_day:    df = df[df["gain_pct"] >= 10]
-if prix_min > 0:   df = df[df["price"] >= prix_min]
-if prix_max < 5000: df = df[df["price"] <= prix_max]
-if search:
-    q = search.lower()
-    df = df[df["name"].str.lower().str.contains(q) | df["rarity"].str.lower().str.contains(q)]
-if set_filter != "Tous les sets":
-    df = df[df["set"] == set_filter.split("(")[-1].rstrip(")")]
+    # Filters
+    if show_day:    df = df[df[chg_key] >= 10]
+    if prix_min > 0:   df = df[df["price"] >= prix_min]
+    if prix_max < 5000: df = df[df["price"] <= prix_max]
+    if search:      df = df[df["name"].str.lower().str.contains(search.lower(), na=False)]
+    if set_filter != "Tous les sets chargés":
+        sid = set_filter.split("(")[-1].rstrip(")")
+        df  = df[df["set_id"] == sid]
 
-df = df.sort_values("gain_pct", ascending=False).reset_index(drop=True)
-period_lbl = {1:"24h", 3:"3j", 7:"7j", 30:"1M", 90:"3M", 180:"6M"}[days]
+    df = df.sort_values(chg_key, ascending=False).reset_index(drop=True)
 
-# Show Day banner
-if show_day:
-    avg = df["gain_pct"].mean() if len(df) else 0
+    # Show Day banner
+    if show_day:
+        avg = df[chg_key].mean() if len(df) else 0
+        st.markdown(f"""
+        <div class="show-banner">
+          <span style="font-size:26px">⚡</span>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:700;color:#06b6d4">MODE SHOW DAY — {period_sel}</div>
+            <div style="font-size:12px;color:#0e7490;margin-top:2px">Cartes avec gain ≥ 10% — les vendeurs n'ont pas encore mis à jour leurs prix</div>
+          </div>
+          <div class="stat-box" style="margin-right:8px"><div class="stat-v">{len(df)}</div><div class="stat-l">opportunités</div></div>
+          <div class="stat-box"><div class="stat-v">+{avg:.1f}%</div><div class="stat-l">gain moy.</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+
     st.markdown(f"""
-    <div class="show-banner">
-      <span style="font-size:26px">⚡</span>
-      <div style="flex:1">
-        <div style="font-size:14px;font-weight:700;color:#06b6d4">MODE SHOW DAY — {period_lbl}</div>
-        <div style="font-size:12px;color:#0e7490;margin-top:2px">Cartes avec gain ≥ 10% — vendeurs pas encore repriced</div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+      <div>
+        <span style="font-size:18px;font-weight:800;color:#f1f5f9">biggest market movers</span>
+        <span style="font-size:12px;color:#334155;margin-left:8px">· {period_sel} · trié par % de gain</span>
       </div>
-      <div style="text-align:center;background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.2);border-radius:10px;padding:8px 18px;margin-right:8px">
-        <div style="font-size:22px;font-weight:800;color:#06b6d4">{len(df)}</div>
-        <div style="font-size:10px;color:#0e7490;text-transform:uppercase;letter-spacing:.06em">opportunités</div>
-      </div>
-      <div style="text-align:center;background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.2);border-radius:10px;padding:8px 18px">
-        <div style="font-size:22px;font-weight:800;color:#06b6d4">+{avg:.1f}%</div>
-        <div style="font-size:10px;color:#0e7490;text-transform:uppercase;letter-spacing:.06em">gain moy.</div>
-      </div>
+      <span style="font-size:12px;color:#2d3748">{len(df)} cartes · {len(st.session_state.loaded_sets)} sets</span>
     </div>
     """, unsafe_allow_html=True)
 
-# Section title
-st.markdown(f"""
-<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
-  <div>
-    <span class="section-title">biggest market movers</span>
-    <span class="section-sub">· trié par % de gain · {period_sel}</span>
-  </div>
-  <span style="font-size:12px;color:#2d3748">{len(df)} cartes</span>
-</div>
-""", unsafe_allow_html=True)
+    if len(df) == 0:
+        st.markdown('<div style="text-align:center;padding:4rem;color:#2d3748;font-size:15px">Aucune carte ne correspond aux filtres.</div>', unsafe_allow_html=True)
+    else:
+        items = ""
+        for _, row in df.iterrows():
+            chg   = row[chg_key]
+            up    = chg >= 0
+            clr   = "#10b981" if up else "#ef4444"
+            arrow = "▲" if up else "▼"
+            price = row["price"]
+            chg1  = row["chg1"]; chg7 = row["chg7"]; chg30 = row["chg30"]
 
-# Cards list
-if len(df) == 0:
-    st.markdown('<div style="text-align:center;padding:5rem;color:#2d3748;font-size:15px">Aucune carte ne correspond aux filtres.</div>', unsafe_allow_html=True)
-else:
-    items_html = ""
-    for _, row in df.iterrows():
-        gp  = row["gain_pct"]
-        gc  = row["gain_cad"]
-        up  = gp >= 0
-        price_color = "#10b981" if up else "#ef4444"
-        arrow       = "▲" if up else "▼"
-        arrow_cls   = "up" if up else "dn"
-        gc_str      = f'+CA${gc:.2f}' if gc >= 0 else f'−CA${abs(gc):.2f}'
-        pct_str     = f'+{gp:.2f}%' if gp >= 0 else f'{gp:.2f}%'
-        img_tag     = f'<img src="{row["img_url"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="card-thumb-ph" style="display:none">🃏</div>' if row.get("img_url") else '<div class="card-thumb-ph">🃏</div>'
-        bp  = '<span class="badge-pump">🔥 +24h</span>' if row["gp1"] > 5 else ""
-        bs  = '<span class="badge-show">⚡ SHOW</span>' if row["gp7"] >= 10 else ""
-        dot = f'<span style="color:{price_color};font-size:9px;margin-right:4px">●</span>' if row.get("live") else ""
-        set_year = SETS.get(row["set"],{}).get("year","")
+            gc    = price - row.get("p7" if chg_key=="chg7" else "p1" if chg_key=="chg1" else "p30", price)
+            gc_str= f'+CA${gc:.2f}' if gc >= 0 else f'−CA${abs(gc):.2f}'
+            pct_str = f'+{chg:.2f}%' if chg >= 0 else f'{chg:.2f}%'
 
-        items_html += f"""
+            def fmt_chg(v):
+                if v > 0:  return f'<span style="color:#10b981;font-size:11px;font-weight:600">▲ +{v:.1f}%</span>'
+                if v < 0:  return f'<span style="color:#ef4444;font-size:11px;font-weight:600">▼ {v:.1f}%</span>'
+                return '<span style="color:#334155;font-size:11px">—</span>'
+
+            img_html = f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="card-thumb-ph" style="display:none">🃏</div>' if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
+            bp = '<span class="badge-pump">🔥 +24h</span>' if chg1 > 5 else ""
+            bs = '<span class="badge-show">⚡ SHOW</span>' if chg7 >= 10 else ""
+
+            items += f"""
 <div class="card-item">
-  {img_tag}
+  {img_html}
   <div class="card-info">
-    <div class="card-name">{dot}{row['name']}{bp}{bs}</div>
-    <div class="card-set-link">{row['set_name']}</div>
-    <div class="card-meta-line">{rar_pill(row['rarity'])}</div>
-    <div class="card-meta-line" style="margin-top:3px;color:#2d3748">{row['set']} · {set_year}</div>
+    <div class="card-name">{row['name']}{bp}{bs}</div>
+    <div class="card-set-line">{row['set_name']}</div>
+    <div class="card-meta">{rar_pill(row['rarity'])} &nbsp;#{row['number']} · {row['set_id'].upper()} · {row['set_year']}</div>
+    <div style="margin-top:6px;display:flex;gap:12px">
+      <span style="font-size:11px;color:#334155">24h: {fmt_chg(chg1)}</span>
+      <span style="font-size:11px;color:#334155">7j: {fmt_chg(chg7)}</span>
+      <span style="font-size:11px;color:#334155">30j: {fmt_chg(chg30)}</span>
+    </div>
   </div>
   <div class="card-price-block">
-    <div class="card-price-main" style="color:{price_color}">
-      <span class="price-arrow {arrow_cls}">{arrow}</span>
-      CA${row['price']:.2f}
+    <div class="price-main" style="color:{clr}">
+      <span style="font-size:14px">{arrow}</span> CA${price:.2f}
     </div>
-    <div class="card-price-change {'chg-up' if up else 'chg-dn'}">{gc_str} ({pct_str})</div>
-    <div class="card-price-qty">{period_lbl} · {'live' if row.get('live') else 'estimé'}</div>
+    <div class="price-change" style="color:{clr}">{gc_str} ({pct_str})</div>
+    <div class="price-period">{period_sel} · TCGdex live</div>
   </div>
 </div>"""
 
-    st.markdown(items_html, unsafe_allow_html=True)
+        st.markdown(items, unsafe_allow_html=True)
 
-# Export
-st.markdown("<hr style='margin:1.5rem 0'>", unsafe_allow_html=True)
-with st.expander("📋  Liste d'achat — export CSV"):
-    ex_df = df[df["gain_pct"] >= 10].copy() if not show_day else df.copy()
-    if len(ex_df) > 0:
-        out = ex_df[["name","set_name","rarity","price","gain_pct","gp7","gp30"]].copy()
-        out.columns = ["Carte","Set","Rareté","Prix CA$",f"Gain {period_lbl} %","Gain 7j %","Gain 30j %"]
-        out["Offre -15%"] = (out["Prix CA$"] * 0.85).round(2)
-        out["Offre -25%"] = (out["Prix CA$"] * 0.75).round(2)
-        st.dataframe(out, use_container_width=True, hide_index=True)
-        st.download_button("⬇️ Télécharger CSV", data=out.to_csv(index=False),
-            file_name=f"show_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", type="primary")
-    else:
-        st.info("Active le Mode Show Day pour générer ta liste.")
-
-with st.expander("➕  Ajouter une carte"):
-    a1, a2 = st.columns(2)
-    with a1:
-        nn  = st.text_input("Nom de la carte")
-        ns  = st.selectbox("Set", list(SETS.keys()), format_func=lambda k: f"{SETS[k]['name']} ({k})")
-        nr  = st.selectbox("Rareté", ["SIR","ALT","IR","GG","SHV","FA","RR","GOLD","HOLO","EX","Autre"])
-    with a2:
-        np_  = st.number_input("Prix actuel CA$", min_value=0.0, step=0.5)
-        np1  = st.number_input("Prix 24h CA$",    min_value=0.0, step=0.5)
-        np7  = st.number_input("Prix 7j CA$",     min_value=0.0, step=0.5)
-        np30 = st.number_input("Prix 30j CA$",    min_value=0.0, step=0.5)
-        np90 = st.number_input("Prix 3M CA$",     min_value=0.0, step=0.5)
-    if st.button("Ajouter la carte", type="primary"):
-        if nn and np_ > 0:
-            st.session_state.cards.append({
-                "id": f"c-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                "name": nn, "set": ns, "rarity": nr, "tier": "A",
-                "price": np_,
-                "p1":   np1  if np1  > 0 else np_ * 0.999,
-                "p3":   np_  * 0.998,
-                "p7":   np7  if np7  > 0 else np_,
-                "p30":  np30 if np30 > 0 else np_,
-                "p90":  np90 if np90 > 0 else np_,
-                "p180": np_,
-                "sat": 0.06, "arb": 0.50, "vel": 0.50,
-                "whale": 0.45, "cross": 0.52, "soc": 0.50, "rep": 0.25, "stab": 0.55
-            })
-            save_json(DATA_FILE, st.session_state.cards)
-            st.success(f"✅ {nn} ajoutée !"); st.rerun()
+    # Export
+    st.markdown("<hr style='margin:1.5rem 0'>", unsafe_allow_html=True)
+    with st.expander("📋  Liste d'achat — export CSV"):
+        ex = df[df[chg_key] >= 10].copy() if not show_day else df.copy()
+        if len(ex) > 0:
+            out = ex[["name","set_name","rarity","price","chg1","chg7","chg30"]].copy()
+            out.columns = ["Carte","Set","Rareté","Prix CA$","Gain 24h %","Gain 7j %","Gain 30j %"]
+            out["Offre -15%"] = (out["Prix CA$"] * 0.85).round(2)
+            out["Offre -25%"] = (out["Prix CA$"] * 0.75).round(2)
+            st.dataframe(out, use_container_width=True, hide_index=True)
+            st.download_button("⬇️ Télécharger CSV", data=out.to_csv(index=False),
+                file_name=f"show_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", type="primary")
         else:
-            st.error("Remplis le nom et le prix.")
+            st.info("Active le Mode Show Day pour générer ta liste.")
 
-with st.expander("📂  Importer un CSV"):
-    st.markdown("""
-    **Format attendu :** `name, set, rarity, price, p1, p7, p30, p90`
-    
-    Tu peux exporter depuis Collectr et adapter les colonnes.
-    """)
-    up = st.file_uploader("Fichier CSV", type=["csv"])
-    if up:
-        try:
-            idf = pd.read_csv(up, skipinitialspace=True)
-            idf.columns = idf.columns.str.strip().str.lower()
-            added = 0
-            for _, r in idf.iterrows():
-                st.session_state.cards.append({
-                    "id": f"imp-{added}-{datetime.now().strftime('%H%M%S')}",
-                    "name": str(r.get("name","?")), "set": str(r.get("set","UNK")),
-                    "rarity": str(r.get("rarity","—")), "tier": str(r.get("tier","B")),
-                    "price": float(r.get("price",0)),
-                    "p1":   float(r.get("p1",   r.get("price",0))),
-                    "p7":   float(r.get("p7",   r.get("price",0))),
-                    "p30":  float(r.get("p30",  r.get("price",0))),
-                    "p90":  float(r.get("p90",  r.get("price",0))),
-                    "p180": float(r.get("p180", r.get("price",0))),
-                    "sat": 0.06, "arb": 0.45, "vel": 0.50,
-                    "whale": 0.45, "cross": 0.52, "soc": 0.50, "rep": 0.25, "stab": 0.55
-                })
-                added += 1
-            save_json(DATA_FILE, st.session_state.cards)
-            st.success(f"✅ {added} cartes importées !"); st.rerun()
-        except Exception as e:
-            st.error(f"Erreur : {e}")
-
-with st.expander("⚙️  Paramètres"):
-    p1, p2 = st.columns(2)
-    with p1:
-        if st.button("Réinitialiser cartes"): st.session_state.cards=ALL_CARDS.copy(); save_json(DATA_FILE,st.session_state.cards); st.rerun()
-        if st.button("Vider cache prix"):     st.session_state.api_cache={}; save_json(CACHE_FILE,{}); st.cache_data.clear(); st.rerun()
-    with p2:
-        st.download_button("Exporter JSON", data=json.dumps(st.session_state.cards,indent=2,ensure_ascii=False), file_name="nasty_model.json", mime="application/json")
+    with st.expander("⚙️  Paramètres"):
+        if st.button("🗑️  Vider tous les sets & cache"):
+            st.session_state.all_cards   = []
+            st.session_state.loaded_sets = set()
+            fetch_set_cards.clear()
+            save_json(CACHE_FILE, {})
+            st.rerun()
