@@ -273,13 +273,6 @@ with st.sidebar:
     set_opts    = ["Tous les sets chargés"] + [f"{v['name']} ({k})" for k,v in SETS.items()]
     set_filter  = st.selectbox("", set_opts, label_visibility="collapsed")
 
-    st.markdown('<span class="sb-section">Charger un set</span>', unsafe_allow_html=True)
-    sets_to_load = st.multiselect(
-        "", [f"{v['name']} ({k})" for k,v in SETS.items()],
-        default=["Surging Sparks (sv8)","Prismatic Evolutions (sv8pt5)","Ascended Heroes (sv11)"],
-        label_visibility="collapsed"
-    )
-
     st.markdown('<span class="sb-section">Prix C$</span>', unsafe_allow_html=True)
     col_a, col_b = st.columns(2)
     with col_a: prix_min = st.number_input("Min", min_value=0, value=0, step=5)
@@ -289,33 +282,7 @@ with st.sidebar:
     search = st.text_input("", placeholder="Nom...", label_visibility="collapsed")
 
     st.markdown("---")
-    if st.button("📥  Charger les sets sélectionnés", type="primary"):
-        for s_opt in sets_to_load:
-            sid = s_opt.split("(")[-1].rstrip(")")
-            if sid not in st.session_state.loaded_sets:
-                with st.spinner(f"Chargement {SETS[sid]['name']}..."):
-                    cards = fetch_set_cards(sid)
-                    for c in cards:
-                        rarity_full = c.get("rarity","")
-                        if rarity_full in TARGET_RARITIES:
-                            price_data = extract_price_and_changes(c)
-                            if price_data:
-                                st.session_state.all_cards.append({
-                                    "id":       c.get("id",""),
-                                    "name":     c.get("name",""),
-                                    "set_id":   sid,
-                                    "set_name": SETS[sid]["name"],
-                                    "set_year": SETS[sid]["year"],
-                                    "rarity":   RARITY_DISPLAY.get(rarity_full, rarity_full),
-                                    "number":   c.get("localId",""),
-                                    "img":      get_card_image(c),
-                                    **price_data
-                                })
-                    st.session_state.loaded_sets.add(sid)
-        save_json(CACHE_FILE, {"cards": st.session_state.all_cards, "sets": list(st.session_state.loaded_sets)})
-        st.rerun()
-
-    if st.button("🔄  Vider & recharger"):
+    if st.button("🔄  Vider & recharger tout", type="primary"):
         st.session_state.all_cards   = []
         st.session_state.loaded_sets = set()
         fetch_set_cards.clear()
@@ -326,12 +293,54 @@ with st.sidebar:
     card_count   = len(st.session_state.all_cards)
     st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-top:4px">{loaded_count} sets chargés · {card_count} cartes</div>', unsafe_allow_html=True)
 
-# Load from disk cache on startup
+# ── Auto-load: disk cache first, then fetch missing sets ──
 if not st.session_state.all_cards and os.path.exists(CACHE_FILE):
     cached = load_json(CACHE_FILE, {})
     if "cards" in cached:
         st.session_state.all_cards   = cached["cards"]
         st.session_state.loaded_sets = set(cached.get("sets", []))
+
+# Auto-fetch any sets not yet loaded (runs in background on first launch)
+all_set_ids = list(SETS.keys())
+missing     = [s for s in all_set_ids if s not in st.session_state.loaded_sets]
+
+if missing:
+    prog_auto = st.empty()
+    total_sets = len(all_set_ids)
+    for i, sid in enumerate(missing):
+        prog_auto.markdown(
+            f'<div style="background:#0d0f1c;border:1px solid #1a1f35;border-radius:10px;padding:12px 18px;font-size:13px;color:#64748b">'
+            f'⏳ Chargement des sets... <strong style="color:#06b6d4">{SETS[sid]["name"]}</strong> '
+            f'<span style="color:#334155">({len(st.session_state.loaded_sets)+1}/{total_sets})</span></div>',
+            unsafe_allow_html=True
+        )
+        try:
+            cards = fetch_set_cards(sid)
+            for c in cards:
+                rarity_full = c.get("rarity", "")
+                if rarity_full in TARGET_RARITIES:
+                    price_data = extract_price_and_changes(c)
+                    if price_data:
+                        st.session_state.all_cards.append({
+                            "id":       c.get("id", ""),
+                            "name":     c.get("name", ""),
+                            "set_id":   sid,
+                            "set_name": SETS[sid]["name"],
+                            "set_year": SETS[sid]["year"],
+                            "rarity":   RARITY_DISPLAY.get(rarity_full, rarity_full),
+                            "number":   c.get("localId", ""),
+                            "img":      get_card_image(c),
+                            **price_data
+                        })
+        except Exception as e:
+            pass  # skip broken sets silently
+        st.session_state.loaded_sets.add(sid)
+
+    save_json(CACHE_FILE, {
+        "cards": st.session_state.all_cards,
+        "sets":  list(st.session_state.loaded_sets)
+    })
+    prog_auto.empty()
 
 # ════ MAIN ════
 st.markdown(f"""
