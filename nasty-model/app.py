@@ -368,25 +368,19 @@ if not st.session_state.loading_done:
             st.session_state.loading_done = True
 
 if not st.session_state.loading_done:
-    prog = st.progress(0, text="Connexion à pokemontcg.io...")
+    prog  = st.progress(0, text="Connexion à pokemontcg.io...")
     all_cards = []
     total = len(SETS)
-    done_count = [0]
+    done  = [0]
 
-    def load_one(args):
-        sid, sname, syear = args
-        cards = fetch_set(sid, sname, syear)
-        done_count[0] += 1
-        return cards
-
-    # Parallel load with 6 workers — much faster than sequential
     with ThreadPoolExecutor(max_workers=6) as ex:
-        futures = {ex.submit(load_one, s): s for s in SETS}
+        futures = {ex.submit(fetch_set, sid, sname, syear): (sid,sname,syear) for sid,sname,syear in SETS}
         for f in as_completed(futures):
             result = f.result() or []
             all_cards.extend(result)
-            pct = min(99, int(done_count[0] / total * 100))
-            prog.progress(pct, text=f"{done_count[0]}/{total} sets · {len(all_cards)} cartes chargées")
+            done[0] += 1
+            pct = min(99, int(done[0] / total * 100))
+            prog.progress(pct, text=f"{done[0]}/{total} sets · {len(all_cards)} cartes")
 
     prog.progress(100, text=f"✓ {len(all_cards)} cartes")
     prog.empty()
