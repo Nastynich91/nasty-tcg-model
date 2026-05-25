@@ -169,7 +169,7 @@ def fetch_set_cards(set_tcg_id, set_name, set_year, api_key):
         # Correct param: tcgPlayerId for the set
         r = requests.get(
             "https://www.pokemonpricetracker.com/api/v2/cards",
-            params={"setId": set_tcg_id, "fetchAllInSet": "true"},
+            params={"set": set_tcg_id, "fetchAllInSet": "true"},
             headers=headers, timeout=25
         )
         if r.status_code == 401: return "INVALID_KEY"
@@ -351,8 +351,9 @@ if not st.session_state.api_key:
 if not st.session_state.loading_done:
     if cache_is_fresh():
         cached = load_json(CACHE_FILE, {})
-        if cached.get("cards"):
-            st.session_state.all_cards    = cached["cards"]
+        cards_cached = cached.get("cards", [])
+        if cards_cached:  # only use cache if it actually has cards
+            st.session_state.all_cards    = cards_cached
             st.session_state.loading_done = True
 
 if not st.session_state.loading_done:
@@ -375,6 +376,11 @@ if not st.session_state.loading_done:
     prog.progress(5, text=f"{total} sets trouvés — chargement des cartes...")
 
     stop_flag = False
+    # Show first set structure for debugging
+    if poke_sets:
+        first = poke_sets[0]
+        st.write(f"**Premier set:** {first}")
+
     for i, s in enumerate(poke_sets):
         if stop_flag: break
         set_tcg_id = s.get("tcgPlayerId") or s.get("id","")
