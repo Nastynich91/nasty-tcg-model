@@ -152,24 +152,24 @@ def cache_is_fresh():
     return age < CACHE_TTL_HOURS
 
 def get_all_set_ids(api_key):
-    """Fetch all sets and return list of {tcgPlayerId, name, year}"""
+    """Fetch all sets from PokemonPriceTracker.
+    Valid params: language, search, series, sortBy, sortOrder, limit, offset
+    """
     try:
         headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+        # No game filter — get all, then filter Pokemon by series/name
         r = requests.get("https://www.pokemonpricetracker.com/api/v2/sets",
-                        params={"game": "pokemon"},
+                        params={"limit": 500, "sortBy": "releaseDate", "sortOrder": "desc"},
                         headers=headers, timeout=20)
         if r.status_code != 200:
-            st.error(f"Sets API status: {r.status_code} — {r.text[:300]}")
+            st.error(f"Sets API {r.status_code}: {r.text[:400]}")
             return []
         body = r.json()
-        # Handle both {data:[]} and direct []
         sets = body if isinstance(body, list) else body.get("data", body.get("sets", []))
-        st.write(f"**Sets trouvés:** {len(sets)}")
-        if sets:
-            st.write(f"**Structure premier set:** {sets[0]}")
+        st.write(f"**Sets API:** {len(sets)} sets · Premier: {sets[0] if sets else 'none'}")
         return sets
     except Exception as e:
-        st.error(f"Sets exception: {e}")
+        st.error(f"Sets error: {e}")
         return []
 
 def fetch_set_cards(set_tcg_id, set_name, set_year, api_key):
