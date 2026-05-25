@@ -197,43 +197,54 @@ def fetch_set_tcgdex(set_id):
             tcgp    = pricing.get("tcgplayer", {})
             cm      = pricing.get("cardmarket", {})
 
-            # --- Current price: TCGPlayer preferred, Cardmarket fallback ---
+            # --- ONE source for price AND history to avoid currency mixing ---
+            # Cardmarket: has avg1/avg7/avg30 history in EUR -> consistent comparisons
+            # TCGPlayer: no history in TCGdex -> use as fallback, no % change
+
             price_cad = None
+            chg1 = chg7 = chg30 = 0.0
 
-            # TCGPlayer USD variants
-            for variant in ["holofoil","1stEditionHolofoil","reverseHolofoil","normal","unlimitedHolofoil"]:
-                v = tcgp.get(variant, {})
-                m = v.get("marketPrice") or v.get("midPrice")
-                if m and m > 0:
-                    price_cad = round(float(m) * USD_CAD, 2)
-                    break
-
-            # Cardmarket EUR fallback
-            if not price_cad:
-                trend = cm.get("trend") or cm.get("avg")
-                if trend and float(trend) > 0:
-                    price_cad = round(float(trend) * EUR_CAD, 2)
-
-            if not price_cad or price_cad < 0.5: continue
-
-            # --- Historical prices from Cardmarket avg1/avg7/avg30 ---
-            def cm_to_cad(key):
-                v = cm.get(key) or cm.get(key+"-holo")
-                if v and float(v) > 0: return round(float(v) * EUR_CAD, 2)
+            def cm_val(key):
+                for k in [key, key + "-holo"]:
+                    v = cm.get(k)
+                    if v:
+                        try:
+                            fv = float(v)
+                            if fv > 0.5: return fv
+                        except: pass
                 return None
 
-            p1  = cm_to_cad("avg1")
-            p7  = cm_to_cad("avg7")
-            p30 = cm_to_cad("avg30")
+            cm_now = cm_val("trend") or cm_val("avg")
 
-            def pct_chg(past):
-                if past and past > 0:
-                    return round((price_cad - past) / past * 100, 2)
-                return 0.0
+            if cm_now:
+                # Use Cardmarket for everything — same EUR base, consistent history
+                price_cad = round(cm_now * EUR_CAD, 2)
+                p1  = cm_val("avg1")
+                p7  = cm_val("avg7")
+                p30 = cm_val("avg30")
 
-            chg1  = pct_chg(p1)
-            chg7  = pct_chg(p7)
-            chg30 = pct_chg(p30)
+                def pct(past_eur):
+                    if past_eur and cm_now and past_eur > 0:
+                        return round((cm_now - past_eur) / past_eur * 100, 2)
+                    return 0.0
+
+                chg1  = pct(p1)
+                chg7  = pct(p7)
+                chg30 = pct(p30)
+            else:
+                # TCGPlayer USD fallback — no history available
+                for variant in ["holofoil","1stEditionHolofoil","reverseHolofoil","normal","unlimitedHolofoil"]:
+                    v = tcgp.get(variant, {})
+                    m = v.get("marketPrice") or v.get("midPrice")
+                    if m:
+                        try:
+                            fv = float(m)
+                            if fv > 0.5:
+                                price_cad = round(fv * USD_CAD, 2)
+                                break
+                        except: pass
+
+            if not price_cad or price_cad < 1.0: continue
 
             # Image
             img = c.get("image","")
