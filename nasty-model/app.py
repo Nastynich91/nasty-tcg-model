@@ -260,24 +260,13 @@ def fetch_set_tcgdex(set_id):
         pass
     return results
 
-def load_all_sets(set_ids, progress_cb=None):
-    """Load all sets in parallel — one thread per set."""
+def load_all_sets(set_ids):
+    """Load all sets in parallel. No st.* calls inside threads."""
     all_cards = []
-    done      = [0]
-    lock      = __import__("threading").Lock()
-
-    def fetch_one(sid):
-        cards = fetch_set_tcgdex(sid)
-        with lock:
-            done[0] += 1
-            if progress_cb: progress_cb(done[0], len(set_ids), sid)
-        return cards
-
     with ThreadPoolExecutor(max_workers=6) as ex:
-        futures = {ex.submit(fetch_one, sid): sid for sid in set_ids}
+        futures = {ex.submit(fetch_set_tcgdex, sid): sid for sid in set_ids}
         for f in as_completed(futures):
             all_cards.extend(f.result() or [])
-
     return all_cards
 
 def rar_pill(r):
@@ -348,29 +337,16 @@ if not st.session_state.loading_done:
     <div style="background:#0d0f1c;border:1px solid #1a1f35;border-radius:14px;padding:20px 24px;margin-bottom:1rem">
       <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:4px">⏳ Chargement en cours...</div>
       <div style="font-size:12px;color:#4a5568;margin-bottom:12px">Tous les sets chargés en parallèle avec prix réels (TCGPlayer + Cardmarket).<br>~1–2 minutes la première fois, puis instantané pendant 12h.</div>
+    </div>
     """, unsafe_allow_html=True)
 
-    prog_bar  = st.empty()
-    prog_text = st.empty()
-    total_s   = len(SETS)
-
-    def on_prog(done, total, sid):
-        pct  = int(done / total * 100)
-        name = SETS.get(sid, {}).get("name", sid)
-        prog_bar.markdown(f"""
-        <div style="background:#1a1f35;border-radius:6px;height:8px;overflow:hidden">
-          <div style="width:{pct}%;height:100%;background:linear-gradient(90deg,#06b6d4,#0891b2);border-radius:6px"></div>
-        </div>""", unsafe_allow_html=True)
-        prog_text.markdown(f'<div style="font-size:12px;color:#4a5568;margin-top:6px">✓ {done}/{total} · {name}</div>', unsafe_allow_html=True)
-
-    cards = load_all_sets(list(SETS.keys()), progress_cb=on_prog)
+    prog = st.progress(0, text="Connexion aux APIs...")
+    cards = load_all_sets(list(SETS.keys()))
+    prog.progress(100, text=f"✓ {len(cards)} cartes chargées")
 
     st.session_state.all_cards    = cards
     st.session_state.loading_done = True
     save_json(CACHE_FILE, {"cards": cards, "ts": datetime.now().isoformat()})
-
-    prog_bar.empty(); prog_text.empty()
-    st.markdown("</div>", unsafe_allow_html=True)
     st.rerun()
 
 # ════ MAIN ════
