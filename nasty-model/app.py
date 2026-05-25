@@ -57,7 +57,7 @@ USD_CAD    = 1.364
 CACHE_FILE    = "data/cards_cache.json"
 HISTORY_FILE  = "data/price_history.json"
 CACHE_TTL     = 12  # hours — refresh prices every 12h
-CACHE_VERSION = "v5"  # bump this to force cache invalidation
+CACHE_VERSION = "v6"  # bump this to force cache invalidation
 API_KEY    = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL   = "https://api.pokemontcg.io/v2"
 
@@ -357,7 +357,7 @@ with st.sidebar:
 if not st.session_state.loading_done:
     if cache_fresh():
         c = load_json(CACHE_FILE, {})
-        if c.get("cards") and c.get("version") == CACHE_VERSION:
+        if c.get("cards") and c.get("version") == CACHE_VERSION and len(c["cards"]) > 500:
             # Re-apply history to cached cards (in case history grew since last cache)
             history = load_json(HISTORY_FILE, {})
             for card in c["cards"]:
