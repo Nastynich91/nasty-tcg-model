@@ -275,7 +275,22 @@ if need_load:
         st.stop()
 
     if not all_cards:
-        st.error("❌ Aucune carte retournée par l'API. Vérifie ta clé RapidAPI.")
+        # Debug: show raw API responses
+        try:
+            r_ep = requests.get(f"{BASE_URL}/episodes", headers=hdrs(), timeout=20)
+            st.error(f"❌ Episodes: HTTP {r_ep.status_code}")
+            body = r_ep.json()
+            eps_list = body if isinstance(body,list) else body.get("data", body.get("episodes",[]))
+            st.write(f"**Episodes count:** {len(eps_list)}")
+            if eps_list:
+                st.write(f"**Premier épisode:** {eps_list[0]}")
+                # Try fetching cards for first episode
+                eid = eps_list[0].get("id")
+                r_c = requests.get(f"{BASE_URL}/episodes/{eid}/cards", headers=hdrs(), timeout=20)
+                st.write(f"**Cards for ep {eid}: HTTP {r_c.status_code}**")
+                st.code(r_c.text[:500])
+        except Exception as e2:
+            st.error(f"Debug error: {e2}")
         st.stop()
 
     prog.progress(90,text="Sauvegarde du cache...")
