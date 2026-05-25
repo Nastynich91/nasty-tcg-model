@@ -276,7 +276,13 @@ if not st.session_state.loading_done:
     # Step 1: get all episodes (1 request)
     episodes=get_all_episodes()
     if not episodes:
-        st.error("❌ Impossible de charger les sets. Vérifie la clé API RapidAPI.")
+        # Show debug info
+        try:
+            r=requests.get(f"{BASE_URL}/episodes",headers=hdrs(),timeout=20)
+            st.error(f"❌ API Error HTTP {r.status_code}")
+            st.code(r.text[:800])
+        except Exception as e:
+            st.error(f"❌ Connection error: {e}")
         st.stop()
 
     # Filter to Pokemon only and sort by release date desc
