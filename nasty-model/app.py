@@ -151,106 +151,91 @@ def cache_is_fresh():
     age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds() / 3600
     return age < CACHE_TTL_HOURS
 
-def fetch_set_ppt(set_info, api_key):
-    """
-    Fetch all cards in a set from PokemonPriceTracker.
-    Docs: GET /api/v2/cards?setId={id}&fetchAllInSet=true
-    Returns real USD prices with 24h/7d/30d change data.
-    """
-    ppt_id = set_info.get("ppt_id", "")
-    if not ppt_id: return []
+def get_all_set_ids(api_key):
+    """Fetch all sets and return list of {tcgPlayerId, name, year}"""
     try:
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "User-Agent": "NastyModel/2.0",
-            "Accept": "application/json"
-        }
-        # PokemonPriceTracker uses setId param with fetchAllInSet
-        url = f"https://www.pokemonpricetracker.com/api/v2/cards"
-        params = {"setId": ppt_id, "fetchAllInSet": "true"}
-        r = requests.get(url, params=params, headers=headers, timeout=25)
+        headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+        r = requests.get("https://www.pokemonpricetracker.com/api/v2/sets",
+                        headers=headers, timeout=20)
+        if r.status_code != 200: return []
+        sets = r.json().get("data", [])
+        return sets
+    except: return []
 
+def fetch_set_cards(set_tcg_id, set_name, set_year, api_key):
+    """Fetch all cards for one set using tcgPlayerId."""
+    try:
+        headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+        # Correct param: tcgPlayerId for the set
+        r = requests.get(
+            "https://www.pokemonpricetracker.com/api/v2/cards",
+            params={"setId": set_tcg_id, "fetchAllInSet": "true"},
+            headers=headers, timeout=25
+        )
         if r.status_code == 401: return "INVALID_KEY"
         if r.status_code == 429: return "RATE_LIMIT"
-        if r.status_code == 404:
-            # Try alternate set id format
-            params2 = {"set": ppt_id, "fetchAllInSet": "true"}
-            r = requests.get(url, params=params2, headers=headers, timeout=25)
-            if r.status_code != 200: return []
-        elif r.status_code != 200:
-            return []
+        if r.status_code != 200: return []
 
         body = r.json()
-        # Handle both {data: [...]} and direct array
-        if isinstance(body, list):
-            cards_raw = body
-        else:
-            cards_raw = body.get("data", body.get("cards", []))
+        cards_raw = body if isinstance(body, list) else body.get("data", [])
 
         results = []
         for c in cards_raw:
-            rarity = (c.get("rarity") or c.get("rarityName") or "")
+            rarity = c.get("rarity","")
             if rarity not in TARGET_RARITIES: continue
 
-            # Extract price — try multiple field names
+            # Price — try all known field names
             price_usd = None
-            for field in ["marketPrice","market_price","price","tcgPlayerPrice"]:
-                v = c.get(field)
+            for f in ["marketPrice","market_price","price","tcgPlayerPrice","marketValue"]:
+                v = c.get(f)
                 if v:
                     try:
                         fv = float(v)
-                        if fv > 0.5:
-                            price_usd = fv
-                            break
+                        if fv > 0.5: price_usd = fv; break
                     except: pass
-
-            # Try nested pricing objects
             if not price_usd:
-                for obj_key in ["pricing","prices","tcgplayer"]:
-                    obj = c.get(obj_key, {})
+                for obj_k in ["pricing","prices","tcgplayer"]:
+                    obj = c.get(obj_k, {})
                     if isinstance(obj, dict):
-                        for sub in ["market","marketPrice","market_price","mid"]:
+                        for sub in ["market","marketPrice","market_price","mid","midPrice"]:
                             v = obj.get(sub)
                             if v:
                                 try:
                                     fv = float(v)
-                                    if fv > 0.5:
-                                        price_usd = fv
-                                        break
+                                    if fv > 0.5: price_usd = fv; break
                                 except: pass
                     if price_usd: break
-
             if not price_usd: continue
+
             price_cad = round(price_usd * USD_CAD, 2)
 
-            # Price changes — try multiple formats
+            # % changes
             chg1 = chg7 = chg30 = 0.0
-            for pc_key in ["price_change","priceChange","change","price_changes"]:
-                pc = c.get(pc_key)
+            for pc_k in ["price_change","priceChange","change","price_changes","changes"]:
+                pc = c.get(pc_k)
                 if isinstance(pc, dict):
-                    chg1  = float(pc.get("24h", pc.get("1d", pc.get("day",  0))) or 0)
-                    chg7  = float(pc.get("7d",  pc.get("7",  pc.get("week", 0))) or 0)
-                    chg30 = float(pc.get("30d", pc.get("30", pc.get("month",0))) or 0)
+                    chg1  = float(pc.get("24h", pc.get("1d", pc.get("day",   0))) or 0)
+                    chg7  = float(pc.get("7d",  pc.get("7",  pc.get("week",  0))) or 0)
+                    chg30 = float(pc.get("30d", pc.get("30", pc.get("month", 0))) or 0)
                     break
 
             # Image
             img = ""
-            for img_key in ["image","imageUrl","img","imageHiRes"]:
-                v = c.get(img_key, "")
-                if v and v.startswith("http"):
-                    img = v; break
+            for img_k in ["image","imageUrl","img","imageHiRes","large"]:
+                v = c.get(img_k,"")
+                if isinstance(v, str) and v.startswith("http"): img = v; break
             if not img:
-                imgs = c.get("images", {})
-                img = imgs.get("large") or imgs.get("small") or ""
+                imgs = c.get("images",{})
+                img = imgs.get("large") or imgs.get("small","")
 
             results.append({
                 "id":       str(c.get("id", c.get("tcgPlayerId",""))),
                 "name":     c.get("name",""),
-                "set_id":   ppt_id,
-                "set_name": set_info.get("name", ppt_id),
-                "set_year": set_info.get("year", 0),
+                "set_id":   set_tcg_id,
+                "set_name": set_name,
+                "set_year": set_year,
                 "rarity":   RARITY_SHORT.get(rarity, rarity),
-                "number":   str(c.get("number", c.get("collectorNumber", c.get("cardNumber","")))),
+                "number":   str(c.get("number", c.get("collectorNumber",""))),
                 "img":      img,
                 "price":    price_cad,
                 "chg1":     chg1,
@@ -258,8 +243,8 @@ def fetch_set_ppt(set_info, api_key):
                 "chg30":    chg30,
             })
         return results
-    except Exception as e:
-        return []
+    except: return []
+
 
 def rar_pill(r):
     m = {"SIR":"p-sir","IR":"p-ir","Shiny":"p-shv","SHV":"p-shv",
@@ -371,24 +356,50 @@ if not st.session_state.loading_done:
             st.session_state.loading_done = True
 
 if not st.session_state.loading_done:
-    prog = st.progress(0, text="Chargement des prix TCGPlayer...")
+    prog = st.progress(0, text="Récupération des sets depuis PokemonPriceTracker...")
     all_cards = []
-    set_list  = list(SETS.items())
-    total     = len(set_list)
 
-    for i, (sid, sinfo) in enumerate(set_list):
-        result = fetch_set_ppt(sinfo, st.session_state.api_key)
+    # Step 1: get all sets from the API (uses their own set IDs)
+    api_sets = get_all_set_ids(st.session_state.api_key)
+    if not api_sets:
+        st.error("❌ Impossible de récupérer les sets. Vérifie ta clé API.")
+        st.stop()
+
+    # Filter: only Pokemon sets
+    poke_sets = [s for s in api_sets if "pokemon" in s.get("name","").lower() 
+                 or s.get("game","").lower() in ["pokemon","pokémon"]
+                 or "pok" in str(s.get("tcgPlayerId","")).lower()
+                 or True]  # take all for now
+
+    total = len(poke_sets)
+    prog.progress(5, text=f"{total} sets trouvés — chargement des cartes...")
+
+    stop_flag = False
+    for i, s in enumerate(poke_sets):
+        if stop_flag: break
+        set_tcg_id = s.get("tcgPlayerId") or s.get("id","")
+        set_name   = s.get("name","")
+        set_year   = 0
+        try:
+            import re
+            yr = re.search(r"20\d\d", str(s.get("releaseDate","") or s.get("year","") or ""))
+            if yr: set_year = int(yr.group())
+        except: pass
+
+        result = fetch_set_cards(set_tcg_id, set_name, set_year, st.session_state.api_key)
         if result == "INVALID_KEY":
-            st.error("❌ Clé API invalide — vérifie ta clé dans la sidebar.")
+            st.error("❌ Clé API invalide.")
             st.stop()
         if result == "RATE_LIMIT":
-            st.warning("⚠️ Limite atteinte (100 req/jour). Reprend demain ou upgrade ton plan.")
-            break
-        if isinstance(result, list):
+            st.warning(f"⚠️ Limite 100 req/jour atteinte après {i} sets. Les cartes chargées sont sauvegardées.")
+            stop_flag = True
+        elif isinstance(result, list):
             all_cards.extend(result)
-        pct = int((i+1)/total*100)
-        prog.progress(pct, text=f"Chargement... {sinfo['name']} ({i+1}/{total})")
 
+        pct = min(99, int(5 + (i+1)/total*94))
+        prog.progress(pct, text=f"{set_name} ({i+1}/{total}) — {len(all_cards)} cartes")
+
+    prog.progress(100, text=f"✓ {len(all_cards)} cartes chargées")
     prog.empty()
     st.session_state.all_cards    = all_cards
     st.session_state.loading_done = True
@@ -399,39 +410,7 @@ if not st.session_state.loading_done:
 df = pd.DataFrame(st.session_state.all_cards) if st.session_state.all_cards else pd.DataFrame()
 
 if df.empty:
-    st.warning("Aucune carte chargée — test API en cours...")
-    
-    # Debug: test one set directly
-    api_key = st.session_state.api_key
-    if api_key:
-        import requests as _req
-        st.code(f"Clé: {api_key[:20]}...")
-        
-        # Test 1: simple search
-        try:
-            r = _req.get(
-                "https://www.pokemonpricetracker.com/api/v2/cards",
-                params={"search": "Charizard", "pageSize": 3},
-                headers={"Authorization": f"Bearer {api_key}"},
-                timeout=15
-            )
-            st.write(f"**Status:** {r.status_code}")
-            st.write(f"**Headers:** {dict(r.headers)}")
-            st.code(r.text[:1000])
-        except Exception as e:
-            st.error(f"Erreur: {e}")
-        
-        # Test 2: sets endpoint
-        try:
-            r2 = _req.get(
-                "https://www.pokemonpricetracker.com/api/v2/sets",
-                headers={"Authorization": f"Bearer {api_key}"},
-                timeout=15
-            )
-            st.write(f"**Sets status:** {r2.status_code}")
-            st.code(r2.text[:500])
-        except Exception as e:
-            st.error(f"Sets error: {e}")
+    st.info("Aucune carte chargée. Clique **Forcer rechargement** dans la sidebar.")
     st.stop()
 
 if show_day:        df = df[df[chg_key] >= 10]
