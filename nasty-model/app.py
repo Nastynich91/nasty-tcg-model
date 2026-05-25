@@ -504,21 +504,35 @@ else:
 # Export + Settings
 st.markdown("<hr style='margin:1.5rem 0'>", unsafe_allow_html=True)
 
-# Show which sets are empty (debug tool)
-with st.expander("🔍  Sets disponibles dans pokemontcg.io"):
-    if st.session_state.all_cards:
-        df_sets = pd.DataFrame(st.session_state.all_cards)
-        set_counts = df_sets.groupby(["set_id","set_name"]).size().reset_index(name="cartes")
-        set_counts = set_counts.sort_values("set_name")
-        all_set_ids = {s[0]: s[1] for s in SETS}
-        st.markdown("**Sets avec cartes :**")
-        st.dataframe(set_counts, use_container_width=True, hide_index=True)
-        empty = [(sid, sname) for sid, sname, _ in SETS 
-                 if sid not in df_sets["set_id"].values]
-        if empty:
-            st.markdown("**Sets vides (ID introuvable dans pokemontcg.io) :**")
-            for sid, sname in empty:
-                st.markdown(f"- `{sid}` → {sname}")
+# Debug: fetch ALL available sets from pokemontcg.io
+with st.expander("🔍  Tous les sets dans pokemontcg.io (live)"):
+    if st.button("📡 Charger tous les sets disponibles"):
+        try:
+            r = requests.get(
+                f"{BASE_URL}/sets",
+                params={"pageSize": 250, "orderBy": "-releaseDate"},
+                headers={"X-Api-Key": API_KEY},
+                timeout=20
+            )
+            if r.status_code == 200:
+                api_sets = r.json().get("data", [])
+                # Filter to 2019+ only
+                recent = [(s["id"], s["name"], s.get("releaseDate","")[:7])
+                          for s in api_sets if s.get("releaseDate","") >= "2019"]
+                recent.sort(key=lambda x: x[2], reverse=True)
+                st.success(f"✅ {len(api_sets)} sets total dans pokemontcg.io")
+                df_api = pd.DataFrame(recent, columns=["ID pokemontcg.io","Nom","Date"])
+                
+                # Mark which ones we're using
+                our_ids = {s[0] for s in SETS}
+                df_api["Dans notre app"] = df_api["ID pokemontcg.io"].apply(
+                    lambda x: "✅" if x in our_ids else "➕ manquant")
+                
+                st.dataframe(df_api, use_container_width=True, hide_index=True)
+            else:
+                st.error(f"API error: {r.status_code}")
+        except Exception as e:
+            st.error(f"Erreur: {e}")
 
 with st.expander("📋  Export liste d'achat CSV"):
     ex = df[df["price"] >= 50].copy() if not show_day else df.copy()
