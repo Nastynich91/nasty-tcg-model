@@ -399,7 +399,39 @@ if not st.session_state.loading_done:
 df = pd.DataFrame(st.session_state.all_cards) if st.session_state.all_cards else pd.DataFrame()
 
 if df.empty:
-    st.info("Aucune carte chargée. Vérifie ta clé API.")
+    st.warning("Aucune carte chargée — test API en cours...")
+    
+    # Debug: test one set directly
+    api_key = st.session_state.api_key
+    if api_key:
+        import requests as _req
+        st.code(f"Clé: {api_key[:20]}...")
+        
+        # Test 1: simple search
+        try:
+            r = _req.get(
+                "https://www.pokemonpricetracker.com/api/v2/cards",
+                params={"search": "Charizard", "pageSize": 3},
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=15
+            )
+            st.write(f"**Status:** {r.status_code}")
+            st.write(f"**Headers:** {dict(r.headers)}")
+            st.code(r.text[:1000])
+        except Exception as e:
+            st.error(f"Erreur: {e}")
+        
+        # Test 2: sets endpoint
+        try:
+            r2 = _req.get(
+                "https://www.pokemonpricetracker.com/api/v2/sets",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=15
+            )
+            st.write(f"**Sets status:** {r2.status_code}")
+            st.code(r2.text[:500])
+        except Exception as e:
+            st.error(f"Sets error: {e}")
     st.stop()
 
 if show_day:        df = df[df[chg_key] >= 10]
