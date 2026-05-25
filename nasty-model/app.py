@@ -156,28 +156,84 @@ def cache_fresh():
 @st.cache_data(ttl=43200, show_spinner=False)
 def fetch_set_prices(set_code, set_name, set_year):
     """
-    Use tcgapi.dev /sets/{id}/prices endpoint.
-    Returns bulk prices for all cards in a set — 1 request per set.
+    Use tcgapi.dev /search with set filter.
+    Paginate through all cards, filter by rarity and price.
     """
+    results = []
     try:
-        # Try by set code first
-        r = requests.get(f"{BASE_URL}/sets/{set_code}/prices",
-                        headers=hdrs(), timeout=20)
-        if r.status_code == 200:
-            body = r.json()
-            prices = body.get("prices", body.get("data", []))
-            return _parse_prices(prices, set_name, set_year, set_code)
+        offset = 0
+        limit  = 100
+        while True:
+            r = requests.get(f"{BASE_URL}/search",
+                            params={
+                                "game":   "pokemon",
+                                "set":    set_name,
+                                "limit":  limit,
+                                "offset": offset,
+                            },
+                            headers=hdrs(), timeout=20)
+            if r.status_code != 200: break
+            body  = r.json()
+            cards = body.get("results", body.get("data", body if isinstance(body,list) else []))
+            if not cards: break
 
-        # Try search approach as fallback
-        r2 = requests.get(f"{BASE_URL}/search",
-                         params={"q": set_name, "game": "pokemon", "limit": 250},
-                         headers=hdrs(), timeout=20)
-        if r2.status_code == 200:
-            body2 = r2.json()
-            cards = body2.get("results", body2.get("data", []))
-            return _parse_search_results(cards, set_name, set_year, set_code)
-    except: pass
-    return []
+            for c in cards:
+                # Only individual cards (not sealed products)
+                if any(w in c.get("name","").lower() for w in
+                       ["booster","elite trainer","etb","case","tin","collection box","bundle","pack"]): continue
+
+                rarity    = c.get("rarity","")
+                price_usd = None
+
+                for f in ["market_price","marketPrice","price","foil_market_price","normal_market_price"]:
+                    v = c.get(f)
+                    if v:
+                        try:
+                            fv = float(str(v).replace("$","").replace(",",""))
+                            if fv > 0: price_usd = fv; break
+                        except: pass
+
+                if not price_usd or price_usd < 3: continue
+                price_cad = round(price_usd * USD_CAD, 2)
+
+                # Price changes
+                def safe_float(v):
+                    try: return float(v or 0)
+                    except: return 0.0
+
+                chg1  = safe_float(c.get("price_change_24h") or c.get("change_24h") or c.get("change_1d"))
+                chg7  = safe_float(c.get("price_change_7d")  or c.get("change_7d")  or c.get("change_7"))
+                chg30 = safe_float(c.get("price_change_30d") or c.get("change_30d") or c.get("change_30"))
+
+                img = c.get("image","") or c.get("image_url","") or c.get("img","")
+                if not img:
+                    imgs = c.get("images",{})
+                    img  = imgs.get("large","") or imgs.get("small","") if isinstance(imgs,dict) else ""
+
+                results.append({
+                    "id":       str(c.get("id","")),
+                    "name":     c.get("name",""),
+                    "set_id":   set_code,
+                    "set_name": set_name,
+                    "set_year": set_year,
+                    "rarity":   RARITY_SHORT.get(rarity, rarity[:8]) if rarity else "—",
+                    "number":   str(c.get("number", c.get("collector_number", c.get("card_number","")))),
+                    "img":      img,
+                    "price":    price_cad,
+                    "chg1":     chg1,
+                    "chg7":     chg7,
+                    "chg30":    chg30,
+                })
+
+            # Check if more pages
+            total = body.get("total", body.get("count", len(cards)))
+            offset += limit
+            if offset >= total or len(cards) < limit: break
+            if offset > 500: break  # safety cap
+
+    except Exception as e:
+        pass
+    return results
 
 def _parse_prices(prices, set_name, set_year, set_code):
     """Parse /sets/{id}/prices response"""
