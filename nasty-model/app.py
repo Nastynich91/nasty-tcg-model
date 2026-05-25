@@ -54,8 +54,9 @@ hr{border:none;border-top:1px solid #1a1f35}
 """, unsafe_allow_html=True)
 
 USD_CAD    = 1.364
-CACHE_FILE = "data/cards_cache.json"
-CACHE_TTL  = 12  # hours
+CACHE_FILE    = "data/cards_cache.json"
+HISTORY_FILE  = "data/price_history.json"
+CACHE_TTL     = 12  # hours — refresh prices every 12h
 API_KEY    = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL   = "https://api.pokemontcg.io/v2"
 
@@ -133,6 +134,61 @@ def load_json(p, d):
 def save_json(p, d):
     os.makedirs(os.path.dirname(p), exist_ok=True)
     with open(p, "w") as f: json.dump(d, f, ensure_ascii=False)
+
+def save_price_snapshot(cards):
+    """Save a timestamped price snapshot for each card. Keep 30 days of history."""
+    history = load_json(HISTORY_FILE, {})
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    today   = datetime.now().strftime("%Y-%m-%d")
+
+    for c in cards:
+        cid = c["id"]
+        if cid not in history:
+            history[cid] = []
+        # Add today's price if not already recorded today
+        existing_dates = [e["d"][:10] for e in history[cid]]
+        if today not in existing_dates:
+            history[cid].append({"d": now_str, "p": c["price"]})
+        # Keep only last 35 entries
+        history[cid] = history[cid][-35:]
+
+    save_json(HISTORY_FILE, history)
+    return history
+
+def calc_changes(card_id, current_price, history):
+    """Calculate % price change over different periods."""
+    entries = history.get(card_id, [])
+    if not entries or len(entries) < 2:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+
+    now = datetime.now()
+
+    def find_price_days_ago(days):
+        target = now - __import__("datetime").timedelta(days=days)
+        # Find closest entry at or before target date
+        best = None
+        for e in entries:
+            try:
+                ed = datetime.strptime(e["d"][:10], "%Y-%m-%d")
+                if ed <= target:
+                    if best is None or ed > datetime.strptime(best["d"][:10], "%Y-%m-%d"):
+                        best = e
+            except: pass
+        return best["p"] if best else None
+
+    def pct(past):
+        if past and past > 0:
+            return round((current_price - past) / past * 100, 2)
+        return 0.0
+
+    p1   = find_price_days_ago(1)
+    p3   = find_price_days_ago(3)
+    p7   = find_price_days_ago(7)
+    p30  = find_price_days_ago(30)
+    # Use oldest available as 6M proxy if we don't have 180 days
+    p_old = entries[0]["p"] if entries else None
+
+    return pct(p1), pct(p3), pct(p7), pct(p30), pct(p_old)
 
 def cache_fresh():
     if not os.path.exists(CACHE_FILE): return False
@@ -245,7 +301,13 @@ with st.sidebar:
     show_day = st.toggle("⚡ Mode Show Day", value=False, help="Prix les plus élevés et haut potentiel")
 
     st.markdown('<span class="sb-section">Trier par</span>', unsafe_allow_html=True)
-    sort_ui = st.selectbox("", ["Prix ↓","Prix ↑","Nom A→Z","Set"], label_visibility="collapsed")
+    st.markdown('<span class="sb-section">Période</span>', unsafe_allow_html=True)
+    period_map = {"24h":"chg1","3 jours":"chg3","7 jours":"chg7","1 mois":"chg30"}
+    period_sel = st.selectbox("", list(period_map.keys()), index=2, label_visibility="collapsed")
+    chg_key    = period_map[period_sel]
+
+    st.markdown('<span class="sb-section">Trier par</span>', unsafe_allow_html=True)
+    sort_ui = st.selectbox("", ["% gain ↓","Prix ↓","Prix ↑","Nom A→Z"], label_visibility="collapsed")
 
     st.markdown('<span class="sb-section">Set</span>', unsafe_allow_html=True)
     set_opts   = ["Tous les sets"] + [s[1] for s in SETS]
@@ -276,6 +338,12 @@ if not st.session_state.loading_done:
     if cache_fresh():
         c = load_json(CACHE_FILE, {})
         if c.get("cards"):
+            # Re-apply history to cached cards (in case history grew since last cache)
+            history = load_json(HISTORY_FILE, {})
+            for card in c["cards"]:
+                c1,c3,c7,c30,cold = calc_changes(card["id"], card["price"], history)
+                card["chg1"]=c1; card["chg3"]=c3; card["chg7"]=c7
+                card["chg30"]=c30; card["chg_old"]=cold
             st.session_state.all_cards    = c["cards"]
             st.session_state.loading_done = True
 
@@ -302,6 +370,18 @@ if not st.session_state.loading_done:
 
     prog.progress(100, text=f"✓ {len(all_cards)} cartes")
     prog.empty()
+
+    # Save price snapshot for historical tracking
+    history = save_price_snapshot(all_cards)
+
+    # Compute price changes from history
+    for c in all_cards:
+        c1, c3, c7, c30, c_old = calc_changes(c["id"], c["price"], history)
+        c["chg1"]  = c1
+        c["chg3"]  = c3
+        c["chg7"]  = c7
+        c["chg30"] = c30
+        c["chg_old"] = c_old
 
     st.session_state.all_cards    = all_cards
     st.session_state.loading_done = True
@@ -332,14 +412,19 @@ if df.empty:
     st.stop()
 
 # Filters
-if show_day:        df = df[df["price"] >= 50]   # Show Day = cartes > $50 CAD
+if show_day:
+    # Show Day = cartes avec gain >= 10% sur 7j OU prix > 50$
+    if "chg7" in df.columns:
+        df = df[(df["chg7"] >= 10) | (df["price"] >= 50)]
+    else:
+        df = df[df["price"] >= 50]
 if prix_min > 0:    df = df[df["price"] >= prix_min]
 if prix_max < 5000: df = df[df["price"] <= prix_max]
 if rar_filter != "Toutes": df = df[df["rarity"] == rar_filter]
 if search:          df = df[df["name"].str.lower().str.contains(search.lower(), na=False)]
 if set_filter != "Tous les sets": df = df[df["set_name"] == set_filter]
 
-sort_map = {"Prix ↓":("price",False),"Prix ↑":("price",True),"Nom A→Z":("name",True),"Set":("set_name",True)}
+sort_map = {"% gain ↓":(chg_key,False),"Prix ↓":("price",False),"Prix ↑":("price",True),"Nom A→Z":("name",True)}
 sk, sa = sort_map[sort_ui]
 df = df.sort_values(sk, ascending=sa).reset_index(drop=True)
 
@@ -359,7 +444,7 @@ st.markdown(f"""
 <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
   <div>
     <span style="font-size:18px;font-weight:800;color:#f1f5f9">biggest market movers</span>
-    <span style="font-size:12px;color:#334155;margin-left:8px">· trié par {sort_ui}</span>
+    <span style="font-size:12px;color:#334155;margin-left:8px">· {period_sel} · trié par {sort_ui}</span>
   </div>
   <span style="font-size:12px;color:#2d3748">{len(df)} cartes</span>
 </div>
@@ -371,8 +456,17 @@ else:
     items = ""
     for _, row in df.iterrows():
         img_html = f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="card-thumb-ph" style="display:none">🃏</div>' if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
-        bs = '<span class="badge-show">⚡ SHOW</span>' if row["price"] >= 50 else ""
-        updated = row.get("tcg_updated","")[:10] if row.get("tcg_updated") else "—"
+
+        def chg_span(v):
+            if v > 0.5:  return f'<span style="color:#10b981;font-weight:600">▲ +{v:.1f}%</span>'
+            if v < -0.5: return f'<span style="color:#ef4444;font-weight:600">▼ {v:.1f}%</span>'
+            return '<span style="color:#334155">—</span>'
+
+        c1=row.get("chg1",0); c3=row.get("chg3",0); c7=row.get("chg7",0); c30=row.get("chg30",0)
+        active_chg = row.get(chg_key, 0)
+        bs  = '<span class="badge-show">⚡ SHOW</span>' if c7 >= 10 or row["price"] >= 50 else ""
+        clr = "#10b981" if active_chg > 0.5 else "#ef4444" if active_chg < -0.5 else "#64748b"
+        pct_str = f"▲ +{active_chg:.1f}%" if active_chg > 0.5 else (f"▼ {active_chg:.1f}%" if active_chg < -0.5 else "—")
 
         items += f"""
 <div class="card-item">
@@ -381,11 +475,17 @@ else:
     <div class="card-name">{row['name']}{bs}</div>
     <div class="card-set-line">{row['set_name']}</div>
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
-    <div style="margin-top:5px;font-size:11px;color:#334155">TCGPlayer mis à jour: {updated}</div>
+    <div style="margin-top:6px;display:flex;gap:14px">
+      <span style="font-size:11px;color:#4a5568">24h: {chg_span(c1)}</span>
+      <span style="font-size:11px;color:#4a5568">3j: {chg_span(c3)}</span>
+      <span style="font-size:11px;color:#4a5568">7j: {chg_span(c7)}</span>
+      <span style="font-size:11px;color:#4a5568">1M: {chg_span(c30)}</span>
+    </div>
   </div>
   <div class="card-price-block">
     <div class="price-main">CA${row['price']:.2f}</div>
-    <div class="price-source" style="margin-top:6px">TCGPlayer · USD→CAD</div>
+    <div class="price-change" style="color:{clr}">{pct_str}</div>
+    <div class="price-source">TCGPlayer · USD→CAD</div>
   </div>
 </div>"""
 
