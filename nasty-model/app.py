@@ -54,29 +54,29 @@ hr{border:none;border-top:1px solid #1a1f35}
 """, unsafe_allow_html=True)
 
 USD_CAD      = 1.364
-EUR_CAD      = 1.55
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
 CACHE_TTL    = 12
-CACHE_VER    = "rapi2"
-RAPI_KEY     = "2cc08eea61msh3a7f590a8538bb3p1ddae6jsn6b129d847fd4"
-RAPI_HOST    = "pokemon-tcg-api.p.rapidapi.com"
-BASE_URL     = f"https://{RAPI_HOST}"
+CACHE_VER    = "pokemontcg_v1"
+API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
+BASE_URL     = "https://api.pokemontcg.io/v2"
 
+TARGET_RARITIES = {
+    "Special Illustration Rare","Illustration Rare","Hyper Rare",
+    "Double Rare","Shiny Rare","Shiny Ultra Rare","Trainer Gallery Rare Holo",
+    "Radiant Rare","Gold Rare","Amazing Rare","ACE SPEC Rare",
+    "Secret Rare","Ultra Rare","Rainbow Rare",
+}
 RARITY_SHORT = {
     "Special Illustration Rare":"SIR","Illustration Rare":"IR",
     "Hyper Rare":"HR","Double Rare":"RR","Shiny Rare":"Shiny",
     "Shiny Ultra Rare":"SHV","Trainer Gallery Rare Holo":"TG",
     "Radiant Rare":"Radiant","Gold Rare":"Gold","Amazing Rare":"AR",
     "ACE SPEC Rare":"ACE","Secret Rare":"Secret","Ultra Rare":"UR",
-    "Rainbow Rare":"RR","Full Art":"FA","Rare Secret":"Secret",
-    "Rare Rainbow":"RR","Rare Ultra":"UR","Rare Shiny GX":"Shiny",
-    "Rare Shiny":"Shiny",
+    "Rainbow Rare":"RR",
 }
-MIN_PRICE_USD = 5.0
 
-def hdrs():
-    return {"x-rapidapi-key":RAPI_KEY,"x-rapidapi-host":RAPI_HOST}
+def hdrs(): return {"X-Api-Key": API_KEY}
 
 def load_json(p,d):
     try:
@@ -119,107 +119,70 @@ def calc_chg(cid,price,history):
     def pct(p): return round((price-p)/p*100,2) if p and p>0 else 0.0
     return pct(find(1)),pct(find(3)),pct(find(7)),pct(find(30))
 
-def load_all_cards():
-    """Main load function — fetches all episodes then all cards."""
-    # Step 1: get episodes list
+def get_all_sets():
+    """Fetch ALL sets from pokemontcg.io — returns list of {id, name, releaseDate}"""
     try:
-        # Fetch all episode pages
-        episodes=[]
-        page=1
-        while True:
-            r=requests.get(f"{BASE_URL}/episodes",
-                params={"per_page":100,"page":page,"game":"pokemon"},
-                headers=hdrs(),timeout=20)
-            if r.status_code!=200:
-                return None, f"Episodes API error: HTTP {r.status_code} — {r.text[:300]}"
-            body=r.json()
-            eps_page=body if isinstance(body,list) else body.get("data",body.get("episodes",[]))
-            if not eps_page: break
-            episodes.extend(eps_page)
-            paging=body.get("paging",{}) if isinstance(body,dict) else {}
-            if page>=paging.get("total",1): break
-            page+=1
-    except Exception as e:
-        return None, f"Connection error: {e}"
+        r=requests.get(f"{BASE_URL}/sets",
+            params={"pageSize":250,"orderBy":"-releaseDate"},
+            headers=hdrs(),timeout=20)
+        if r.status_code==200:
+            return r.json().get("data",[])
+    except: pass
+    return []
 
-    # Filter 2016+ only
-    eps=[]
-    for e in episodes:
-        rd=str(e.get("release_date","") or e.get("releaseDate","") or "")
-        year=int(rd[:4]) if len(rd)>=4 else 0
-        if year>=2016:
-            eps.append((e.get("id"),e.get("name",""),year))
-    eps.sort(key=lambda x:x[2],reverse=True)
-
-    # Step 2: fetch cards per episode in parallel
-    all_cards=[]
-    done=[0]
-
-    def fetch_ep(args):
-        eid,ename,eyear=args
+def fetch_set_cards(set_id, set_name, set_year):
+    """Fetch valuable cards for one set — 1 API call"""
+    try:
+        r=requests.get(f"{BASE_URL}/cards",
+            params={
+                "q": f"set.id:{set_id}",
+                "select": "id,name,rarity,images,tcgplayer,number",
+                "pageSize": 250,
+            },
+            headers=hdrs(),timeout=20)
+        if r.status_code!=200: return []
+        cards=r.json().get("data",[])
         results=[]
-        try:
-            page=1
-            while True:
-                r2=requests.get(f"{BASE_URL}/episodes/{eid}/cards",
-                    params={"sort":"price_highest","per_page":100,"page":page},
-                    headers=hdrs(),timeout=20)
-                if r2.status_code!=200: break
-                body=r2.json()
-                # Response format: {"data":[...],"paging":{...},"results":N}
-                cards=body.get("data",[]) if isinstance(body,dict) else body
-                if not cards: break
-                for c in cards:
-                    prices=c.get("prices",{})
-                    tcgp=prices.get("tcg_player",{})
-                    cm=prices.get("cardmarket",{})
-                    usd=tcgp.get("market_price") or tcgp.get("mid_price")
-                    cad=None
-                    if usd and float(usd)>=MIN_PRICE_USD:
-                        cad=round(float(usd)*USD_CAD,2)
-                    elif cm.get("30d_average") and float(cm.get("30d_average",0))>3:
-                        cad=round(float(cm["30d_average"])*EUR_CAD,2)
-                    if not cad: continue
-                    img=c.get("image","")
-                    rarity=c.get("rarity","")
-                    results.append({
-                        "id":str(c.get("id","")),
-                        "name":c.get("name",""),
-                        "set_id":str(eid),
-                        "set_name":ename,
-                        "set_year":eyear,
-                        "rarity":RARITY_SHORT.get(rarity,rarity[:10] if rarity else "—"),
-                        "number":str(c.get("card_number",c.get("number",""))),
-                        "img":img if img and img.startswith("http") else "",
-                        "price":cad,
-                        "chg1":0.0,"chg3":0.0,"chg7":0.0,"chg30":0.0,
-                    })
-                # Check pagination
-                paging=body.get("paging",{}) if isinstance(body,dict) else {}
-                total_pages=paging.get("total",1)
-                if page>=total_pages: break
-                page+=1
-        except: pass
+        for c in cards:
+            rarity=c.get("rarity","")
+            if rarity not in TARGET_RARITIES: continue
+            prices=c.get("tcgplayer",{}).get("prices",{})
+            price_usd=None
+            for v in ["holofoil","1stEditionHolofoil","reverseHolofoil","normal","unlimitedHolofoil"]:
+                p=prices.get(v,{})
+                m=p.get("market") or p.get("mid")
+                if m and float(m)>0: price_usd=float(m); break
+            if not price_usd or price_usd<3: continue
+            imgs=c.get("images",{})
+            results.append({
+                "id":       c.get("id",""),
+                "name":     c.get("name",""),
+                "set_id":   set_id,
+                "set_name": set_name,
+                "set_year": set_year,
+                "rarity":   RARITY_SHORT.get(rarity,rarity),
+                "number":   c.get("number",""),
+                "img":      imgs.get("large") or imgs.get("small",""),
+                "price":    round(price_usd*USD_CAD,2),
+                "chg1":0.0,"chg3":0.0,"chg7":0.0,"chg30":0.0,
+            })
         return results
-
-    with ThreadPoolExecutor(max_workers=5) as ex:
-        futures={ex.submit(fetch_ep,e):e for e in eps}
-        for f in as_completed(futures):
-            all_cards.extend(f.result() or [])
-            done[0]+=1
-
-    return all_cards, None
+    except: return []
 
 def rar_pill(r):
     m={"SIR":"p-sir","IR":"p-ir","Shiny":"p-shv","SHV":"p-shv","HR":"p-rr",
        "UR":"p-alt","Secret":"p-gold","RR":"p-rr","Gold":"p-gold",
-       "TG":"p-fa","ACE":"p-ir","Radiant":"p-ir","AR":"p-alt","FA":"p-fa"}
+       "TG":"p-fa","ACE":"p-ir","Radiant":"p-ir","AR":"p-alt"}
     return f'<span class="pill {m.get(r,"p-def")}">{r}</span>'
 
 def fmt_chg(v):
     if v>0.5:  return f'<span style="color:#10b981;font-size:11px;font-weight:600">▲ +{v:.1f}%</span>'
     if v<-0.5: return f'<span style="color:#ef4444;font-size:11px;font-weight:600">▼ {v:.1f}%</span>'
     return '<span style="color:#334155;font-size:11px">—</span>'
+
+# ── Read cache for sidebar ──
+_cache=load_json(CACHE_FILE,{})
+_cards=_cache.get("cards",[]) if _cache.get("version")==CACHE_VER else []
 
 # ════ SIDEBAR ════
 with st.sidebar:
@@ -233,44 +196,38 @@ with st.sidebar:
     st.markdown('<span class="sb-section">Trier par</span>',unsafe_allow_html=True)
     sort_ui=st.selectbox("",["Prix ↓","% gain ↓","Prix ↑","Nom A→Z"],label_visibility="collapsed")
     st.markdown('<span class="sb-section">Set</span>',unsafe_allow_html=True)
-
-    # Load set names from cache for sidebar
-    _cache=load_json(CACHE_FILE,{})
-    _cards=_cache.get("cards",[]) if _cache.get("version")==CACHE_VER else []
     set_names=sorted(set(c["set_name"] for c in _cards)) if _cards else []
     set_filter=st.selectbox("",["Tous les sets"]+set_names,label_visibility="collapsed")
-
     st.markdown('<span class="sb-section">Prix C$</span>',unsafe_allow_html=True)
     ca,cb=st.columns(2)
     with ca: prix_min=st.number_input("Min",min_value=0,value=0,step=5)
     with cb: prix_max=st.number_input("Max",min_value=0,value=5000,step=25)
     st.markdown('<span class="sb-section">Rareté</span>',unsafe_allow_html=True)
-    rar_filter=st.selectbox("",["Toutes","SIR","IR","HR","RR","SHV","Shiny","Gold","FA","Secret","UR","TG"],label_visibility="collapsed")
+    rar_filter=st.selectbox("",["Toutes","SIR","IR","HR","RR","SHV","Shiny","Gold","Secret","UR","TG"],label_visibility="collapsed")
     st.markdown('<span class="sb-section">Recherche</span>',unsafe_allow_html=True)
     search=st.text_input("",placeholder="Nom...",label_visibility="collapsed")
     st.markdown("---")
-    n=len(_cards)
-    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-bottom:8px">{n} cartes · pokemon-api.com</div>',unsafe_allow_html=True)
+    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-bottom:8px">{len(_cards)} cartes · pokemontcg.io</div>',unsafe_allow_html=True)
     do_reload=st.button("🔄  Forcer rechargement",type="primary")
 
-# ════ MAIN ════
+# ════ HEADER ════
 st.markdown(f"""
 <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 0 1.25rem;border-bottom:1px solid #1a1f35;margin-bottom:1.25rem">
   <div style="display:flex;align-items:center;gap:12px">
     <div style="width:40px;height:40px;background:linear-gradient(135deg,#06b6d4,#0891b2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px">🃏</div>
     <div>
-      <div style="font-size:20px;font-weight:800;color:#f1f5f9;letter-spacing:-.03em">The Nasty Model</div>
-      <div style="font-size:11px;color:#2d3748">TCGPlayer · Cardmarket · C$ · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
+      <div style="font-size:20px;font-weight:800;color:#f1f5f9">The Nasty Model</div>
+      <div style="font-size:11px;color:#2d3748">TCGPlayer · C$ · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
     </div>
   </div>
   <div style="display:flex;gap:8px">
     <div style="background:#0d1520;border:1px solid #0891b2;color:#06b6d4;font-size:11px;padding:4px 10px;border-radius:20px;font-weight:600">🇨🇦 CAD</div>
-    <div style="background:#0d1520;border:1px solid #1a1f35;color:#334155;font-size:11px;padding:4px 10px;border-radius:20px">{n} cartes</div>
+    <div style="background:#0d1520;border:1px solid #1a1f35;color:#334155;font-size:11px;padding:4px 10px;border-radius:20px">{len(_cards)} cartes</div>
   </div>
 </div>
 """,unsafe_allow_html=True)
 
-# ════ CHECK IF NEED TO LOAD ════
+# ════ LOAD IF NEEDED ════
 cache=load_json(CACHE_FILE,{})
 cards=cache.get("cards",[])
 ts=cache.get("ts","")
@@ -278,7 +235,7 @@ ver=cache.get("version","")
 age=999
 if ts:
     try: age=(datetime.now()-datetime.fromisoformat(ts)).total_seconds()/3600
-    except: age=999
+    except: pass
 
 need_load = do_reload or not cards or ver!=CACHE_VER or age>CACHE_TTL
 
@@ -287,28 +244,50 @@ if need_load:
         try: os.remove(CACHE_FILE)
         except: pass
 
-    prog=st.progress(0,text="🔌 Connexion à pokemon-api.com...")
-    with st.spinner("Chargement de tous les sets..."):
-        all_cards, err = load_all_cards()
+    prog=st.progress(0, text="Récupération des sets depuis pokemontcg.io...")
 
-    if err:
-        st.error(f"❌ Erreur API: {err}")
+    # Step 1: get ALL sets from API (1 call)
+    all_sets=get_all_sets()
+    if not all_sets:
+        st.error("❌ Impossible de contacter pokemontcg.io")
         st.stop()
 
-    if not all_cards:
-        st.error("❌ Aucune carte trouvée. Le plan gratuit RapidAPI est peut-être limité à 20 sets sans cartes pour le moment.")
-        st.info("💡 Les sets sont bien trouvés (20 épisodes) mais les cartes retournent 0 résultats. Essaie de rafraîchir demain quand les requêtes resettent.")
-        st.stop()
+    # Filter to 2015+ only
+    sets_to_load=[]
+    for s in all_sets:
+        rd=s.get("releaseDate","")
+        try:
+            year=int(rd[:4]) if rd else 0
+        except: year=0
+        if year>=2015:
+            sets_to_load.append((s["id"], s["name"], year))
 
-    prog.progress(90,text="Sauvegarde du cache...")
+    prog.progress(5, text=f"{len(sets_to_load)} sets trouvés — chargement des cartes...")
+
+    # Step 2: fetch cards in parallel (6 workers)
+    all_cards=[]
+    done=[0]
+    total=len(sets_to_load)
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futures={ex.submit(fetch_set_cards,sid,sname,syear):(sid,sname,syear)
+                 for sid,sname,syear in sets_to_load}
+        for f in as_completed(futures):
+            all_cards.extend(f.result() or [])
+            done[0]+=1
+            pct=min(99,int(5+done[0]/total*94))
+            prog.progress(pct, text=f"{done[0]}/{total} sets · {len(all_cards)} cartes")
+
+    prog.progress(100, text=f"✓ {len(all_cards)} cartes")
+    prog.empty()
+
+    # Save history + compute changes
     history=save_snapshot(all_cards)
     for c in all_cards:
         c1,c3,c7,c30=calc_chg(c["id"],c["price"],history)
-        c["chg1"]=c1;c["chg3"]=c3;c["chg7"]=c7;c["chg30"]=c30
+        c["chg1"]=c1; c["chg3"]=c3; c["chg7"]=c7; c["chg30"]=c30
 
     save_json(CACHE_FILE,{"cards":all_cards,"ts":datetime.now().isoformat(),"version":CACHE_VER})
-    prog.progress(100,text=f"✓ {len(all_cards)} cartes chargées")
-    prog.empty()
     cards=all_cards
     st.rerun()
 
@@ -317,11 +296,10 @@ if not cards:
     st.info("Aucune carte. Clique **Forcer rechargement**.")
     st.stop()
 
-# Re-apply history changes
 history=load_json(HISTORY_FILE,{})
 for c in cards:
     c1,c3,c7,c30=calc_chg(c["id"],c["price"],history)
-    c["chg1"]=c1;c["chg3"]=c3;c["chg7"]=c7;c["chg30"]=c30
+    c["chg1"]=c1; c["chg3"]=c3; c["chg7"]=c7; c["chg30"]=c30
 
 df=pd.DataFrame(cards)
 if show_day:        df=df[(df[chg_key]>=10)|(df["price"]>=50)]
@@ -330,6 +308,7 @@ if prix_max<5000:   df=df[df["price"]<=prix_max]
 if rar_filter!="Toutes": df=df[df["rarity"]==rar_filter]
 if search:          df=df[df["name"].str.lower().str.contains(search.lower(),na=False)]
 if set_filter!="Tous les sets": df=df[df["set_name"]==set_filter]
+
 sort_map={"Prix ↓":("price",False),"% gain ↓":(chg_key,False),"Prix ↑":("price",True),"Nom A→Z":("name",True)}
 sk,sa=sort_map[sort_ui]
 df=df.sort_values(sk,ascending=sa).reset_index(drop=True)
@@ -340,7 +319,8 @@ if show_day:
     <div style="flex:1"><div style="font-size:14px;font-weight:700;color:#06b6d4">MODE SHOW DAY</div>
     <div style="font-size:12px;color:#0e7490;margin-top:2px">Gain ≥10% ou prix ≥CA$50</div></div>
     <div class="stat-box" style="margin-right:8px"><div class="stat-v">{len(df)}</div><div class="stat-l">opportunités</div></div>
-    <div class="stat-box"><div class="stat-v">+{avg:.1f}%</div><div class="stat-l">gain moy.</div></div></div>""",unsafe_allow_html=True)
+    <div class="stat-box"><div class="stat-v">+{avg:.1f}%</div><div class="stat-l">gain moy.</div></div></div>""",
+    unsafe_allow_html=True)
 
 st.markdown(f"""<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
   <div><span style="font-size:18px;font-weight:800;color:#f1f5f9">biggest market movers</span>
@@ -352,7 +332,8 @@ for _,row in df.iterrows():
     chg=row[chg_key]; up=chg>0.5; dn=chg<-0.5
     clr="#10b981" if up else("#ef4444" if dn else "#64748b")
     pct_str=f"▲ +{chg:.1f}%" if up else(f"▼ {chg:.1f}%" if dn else "—")
-    img_html=f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="card-thumb-ph" style="display:none">🃏</div>' if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
+    img_html=(f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
+              f'<div class="card-thumb-ph" style="display:none">🃏</div>') if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
     bs='<span class="badge-show">⚡ SHOW</span>' if(row[chg_key]>=10 or row["price"]>=50) else ""
     items+=f"""<div class="card-item">{img_html}
   <div class="card-info">
