@@ -51,73 +51,14 @@ hr{border:none;border-top:1px solid #1a1f35}
 .stat-box{text-align:center;background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.2);border-radius:10px;padding:8px 18px}
 .stat-v{font-size:22px;font-weight:800;color:#06b6d4}
 .stat-l{font-size:10px;color:#0e7490;text-transform:uppercase;letter-spacing:.06em}
-.api-key-box{background:#0d0f1c;border:1px solid #1a1f35;border-radius:14px;padding:24px;text-align:center;margin:2rem auto;max-width:500px}
 </style>
 """, unsafe_allow_html=True)
 
 USD_CAD    = 1.364
 CACHE_FILE = "data/cards_cache.json"
-CACHE_TTL_HOURS = 12
-
-SETS = {
-    "xy1":    {"name":"XY Base","year":2014,"ppt_id":"xy1"},
-    "xy2":    {"name":"Flashfire","year":2014,"ppt_id":"flashfire"},
-    "xy6":    {"name":"Roaring Skies","year":2015,"ppt_id":"roaring-skies"},
-    "xy7":    {"name":"Ancient Origins","year":2015,"ppt_id":"ancient-origins"},
-    "xy8":    {"name":"BREAKthrough","year":2015,"ppt_id":"breakthrough"},
-    "xy9":    {"name":"BREAKpoint","year":2016,"ppt_id":"breakpoint"},
-    "xy10":   {"name":"Fates Collide","year":2016,"ppt_id":"fates-collide"},
-    "xy11":   {"name":"Steam Siege","year":2016,"ppt_id":"steam-siege"},
-    "xy12":   {"name":"Evolutions","year":2016,"ppt_id":"evolutions"},
-    "sm1":    {"name":"Sun & Moon","year":2017,"ppt_id":"sun-moon"},
-    "sm2":    {"name":"Guardians Rising","year":2017,"ppt_id":"guardians-rising"},
-    "sm3":    {"name":"Burning Shadows","year":2017,"ppt_id":"burning-shadows"},
-    "sm35":   {"name":"Shining Legends","year":2017,"ppt_id":"shining-legends"},
-    "sm4":    {"name":"Crimson Invasion","year":2017,"ppt_id":"crimson-invasion"},
-    "sm5":    {"name":"Ultra Prism","year":2018,"ppt_id":"ultra-prism"},
-    "sm6":    {"name":"Forbidden Light","year":2018,"ppt_id":"forbidden-light"},
-    "sm7":    {"name":"Celestial Storm","year":2018,"ppt_id":"celestial-storm"},
-    "sm8":    {"name":"Lost Thunder","year":2018,"ppt_id":"lost-thunder"},
-    "sm9":    {"name":"Team Up","year":2019,"ppt_id":"team-up"},
-    "sm10":   {"name":"Unbroken Bonds","year":2019,"ppt_id":"unbroken-bonds"},
-    "sm11":   {"name":"Unified Minds","year":2019,"ppt_id":"unified-minds"},
-    "hif":    {"name":"Hidden Fates","year":2019,"ppt_id":"hidden-fates"},
-    "sm12":   {"name":"Cosmic Eclipse","year":2019,"ppt_id":"cosmic-eclipse"},
-    "swsh2":  {"name":"Rebel Clash","year":2020,"ppt_id":"rebel-clash"},
-    "swsh3":  {"name":"Darkness Ablaze","year":2020,"ppt_id":"darkness-ablaze"},
-    "swsh4":  {"name":"Vivid Voltage","year":2020,"ppt_id":"vivid-voltage"},
-    "shf":    {"name":"Shining Fates","year":2021,"ppt_id":"shining-fates"},
-    "swsh5":  {"name":"Battle Styles","year":2021,"ppt_id":"battle-styles"},
-    "swsh6":  {"name":"Chilling Reign","year":2021,"ppt_id":"chilling-reign"},
-    "swsh7":  {"name":"Evolving Skies","year":2021,"ppt_id":"evolving-skies"},
-    "swsh8":  {"name":"Fusion Strike","year":2021,"ppt_id":"fusion-strike"},
-    "cel25":  {"name":"Celebrations","year":2021,"ppt_id":"celebrations"},
-    "swsh9":  {"name":"Brilliant Stars","year":2022,"ppt_id":"brilliant-stars"},
-    "swsh10": {"name":"Astral Radiance","year":2022,"ppt_id":"astral-radiance"},
-    "pgo":    {"name":"Pokémon GO","year":2022,"ppt_id":"pokemon-go"},
-    "swsh11": {"name":"Lost Origin","year":2022,"ppt_id":"lost-origin"},
-    "swsh12": {"name":"Silver Tempest","year":2022,"ppt_id":"silver-tempest"},
-    "swsh125":{"name":"Crown Zenith","year":2023,"ppt_id":"crown-zenith"},
-    "sv1":    {"name":"Scarlet & Violet","year":2023,"ppt_id":"scarlet-violet"},
-    "sv2":    {"name":"Paldea Evolved","year":2023,"ppt_id":"paldea-evolved"},
-    "sv3":    {"name":"Obsidian Flames","year":2023,"ppt_id":"obsidian-flames"},
-    "sv3pt5": {"name":"Pokémon 151","year":2023,"ppt_id":"pokemon-151"},
-    "sv4":    {"name":"Paradox Rift","year":2023,"ppt_id":"paradox-rift"},
-    "sv4pt5": {"name":"Paldean Fates","year":2024,"ppt_id":"paldean-fates"},
-    "sv5":    {"name":"Temporal Forces","year":2024,"ppt_id":"temporal-forces"},
-    "sv6":    {"name":"Twilight Masquerade","year":2024,"ppt_id":"twilight-masquerade"},
-    "sv6pt5": {"name":"Shrouded Fable","year":2024,"ppt_id":"shrouded-fable"},
-    "sv7":    {"name":"Stellar Crown","year":2024,"ppt_id":"stellar-crown"},
-    "sv8":    {"name":"Surging Sparks","year":2024,"ppt_id":"surging-sparks"},
-    "sv8pt5": {"name":"Prismatic Evolutions","year":2025,"ppt_id":"prismatic-evolutions"},
-    "sv9":    {"name":"Journey Together","year":2025,"ppt_id":"journey-together"},
-    "sv9pt5": {"name":"Destined Rivals","year":2025,"ppt_id":"destined-rivals"},
-    "sv10":   {"name":"Mega Evolution","year":2025,"ppt_id":"mega-evolution"},
-    "sv10pt5":{"name":"Phantasmal Flames","year":2025,"ppt_id":"phantasmal-flames"},
-    "sv11":   {"name":"Ascended Heroes","year":2026,"ppt_id":"ascended-heroes"},
-    "sv11pt5":{"name":"Perfect Order","year":2026,"ppt_id":"perfect-order"},
-    "sv12":   {"name":"Chaos Rising","year":2026,"ppt_id":"chaos-rising"},
-}
+CACHE_TTL  = 12  # hours
+API_KEY    = "tcg_live_2b62c19d32e9a3e7314ab4c7b44c617828a130ec"
+BASE_URL   = "https://api.tcgapi.dev/v1"
 
 TARGET_RARITIES = {
     "Special Illustration Rare","Illustration Rare",
@@ -125,6 +66,7 @@ TARGET_RARITIES = {
     "Shiny Rare","Shiny Ultra Rare","Double Rare",
     "Trainer Gallery Rare Holo","Radiant Rare",
     "Gold Rare","Amazing Rare","ACE SPEC Rare",
+    "Rainbow Rare","Full Art","Secret","Promo",
 }
 RARITY_SHORT = {
     "Special Illustration Rare":"SIR","Illustration Rare":"IR",
@@ -132,6 +74,7 @@ RARITY_SHORT = {
     "Shiny Rare":"Shiny","Shiny Ultra Rare":"SHV","Double Rare":"RR",
     "Trainer Gallery Rare Holo":"TG","Radiant Rare":"Radiant",
     "Gold Rare":"Gold","Amazing Rare":"AR","ACE SPEC Rare":"ACE",
+    "Rainbow Rare":"RR","Full Art":"FA","Secret":"Secret","Promo":"Promo",
 }
 
 def load_json(p, d):
@@ -143,108 +86,100 @@ def save_json(p, d):
     os.makedirs(os.path.dirname(p), exist_ok=True)
     with open(p, "w") as f: json.dump(d, f, ensure_ascii=False)
 
-def cache_is_fresh():
+def cache_fresh():
     if not os.path.exists(CACHE_FILE): return False
-    cached = load_json(CACHE_FILE, {})
-    ts = cached.get("ts")
+    c = load_json(CACHE_FILE, {})
+    ts = c.get("ts")
     if not ts: return False
-    age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds() / 3600
-    return age < CACHE_TTL_HOURS
+    return (datetime.now() - datetime.fromisoformat(ts)).total_seconds() / 3600 < CACHE_TTL
 
-def get_all_set_ids(api_key):
-    """Fetch all sets from PokemonPriceTracker.
-    Valid params: language, search, series, sortBy, sortOrder, limit, offset
-    """
-    try:
-        headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
-        # No game filter — get all, then filter Pokemon by series/name
-        r = requests.get("https://www.pokemonpricetracker.com/api/v2/sets",
-                        params={"limit": 500, "sortBy": "releaseDate", "sortOrder": "desc"},
-                        headers=headers, timeout=20)
-        if r.status_code != 200:
-            st.error(f"Sets API {r.status_code}: {r.text[:400]}")
-            return []
-        body = r.json()
-        sets = body if isinstance(body, list) else body.get("data", body.get("sets", []))
-        st.write(f"**Sets API:** {len(sets)} sets · Premier: {sets[0] if sets else 'none'}")
-        return sets
-    except Exception as e:
-        st.error(f"Sets error: {e}")
-        return []
+def headers():
+    return {"Authorization": f"Bearer {API_KEY}", "Accept": "application/json"}
 
-def fetch_set_cards(set_tcg_id, set_name, set_year, api_key):
-    """Fetch all cards for one set using tcgPlayerId."""
+@st.cache_data(ttl=43200, show_spinner=False)
+def fetch_pokemon_sets():
+    """Get all Pokemon sets from tcgapi.dev"""
     try:
-        headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
-        # Correct param: tcgPlayerId for the set
-        r = requests.get(
-            "https://www.pokemonpricetracker.com/api/v2/cards",
-            params={"set": set_tcg_id, "fetchAllInSet": "true"},
-            headers=headers, timeout=25
-        )
-        if r.status_code == 401: return "INVALID_KEY"
-        if r.status_code == 429: return "RATE_LIMIT"
+        r = requests.get(f"{BASE_URL}/sets", params={"game": "pokemon", "limit": 200},
+                        headers=headers(), timeout=20)
+        if r.status_code == 200:
+            body = r.json()
+            return body if isinstance(body, list) else body.get("data", body.get("sets", []))
+    except: pass
+    return []
+
+@st.cache_data(ttl=43200, show_spinner=False)
+def fetch_set_cards(set_id, set_name, set_year):
+    """Fetch all valuable cards for one set"""
+    try:
+        r = requests.get(f"{BASE_URL}/cards",
+                        params={"set": set_id, "game": "pokemon", "limit": 500},
+                        headers=headers(), timeout=25)
         if r.status_code != 200: return []
-
         body = r.json()
-        cards_raw = body if isinstance(body, list) else body.get("data", [])
+        cards = body if isinstance(body, list) else body.get("data", body.get("cards", []))
 
         results = []
-        for c in cards_raw:
-            rarity = c.get("rarity","")
-            if rarity not in TARGET_RARITIES: continue
+        for c in cards:
+            rarity = (c.get("rarity") or c.get("rarityName") or "")
 
-            # Price — try all known field names
+            # Extract price USD
             price_usd = None
-            for f in ["marketPrice","market_price","price","tcgPlayerPrice","marketValue"]:
+            for f in ["price","marketPrice","market_price","tcgPlayerPrice","value"]:
                 v = c.get(f)
                 if v:
                     try:
-                        fv = float(v)
+                        fv = float(str(v).replace("$","").replace(",",""))
                         if fv > 0.5: price_usd = fv; break
                     except: pass
             if not price_usd:
-                for obj_k in ["pricing","prices","tcgplayer"]:
+                for obj_k in ["pricing","prices","tcgplayer","market"]:
                     obj = c.get(obj_k, {})
                     if isinstance(obj, dict):
-                        for sub in ["market","marketPrice","market_price","mid","midPrice"]:
+                        for sub in ["market","marketPrice","mid","price","usd"]:
                             v = obj.get(sub)
                             if v:
                                 try:
-                                    fv = float(v)
+                                    fv = float(str(v).replace("$",""))
                                     if fv > 0.5: price_usd = fv; break
                                 except: pass
                     if price_usd: break
             if not price_usd: continue
 
+            # Skip commons under $5
+            if price_usd < 5 and rarity not in TARGET_RARITIES: continue
+
             price_cad = round(price_usd * USD_CAD, 2)
 
-            # % changes
+            # Price changes
             chg1 = chg7 = chg30 = 0.0
-            for pc_k in ["price_change","priceChange","change","price_changes","changes"]:
+            for pc_k in ["price_change","priceChange","change","changes","price_changes"]:
                 pc = c.get(pc_k)
                 if isinstance(pc, dict):
-                    chg1  = float(pc.get("24h", pc.get("1d", pc.get("day",   0))) or 0)
-                    chg7  = float(pc.get("7d",  pc.get("7",  pc.get("week",  0))) or 0)
-                    chg30 = float(pc.get("30d", pc.get("30", pc.get("month", 0))) or 0)
+                    def safe(v): 
+                        try: return float(v or 0)
+                        except: return 0.0
+                    chg1  = safe(pc.get("24h") or pc.get("1d") or pc.get("day"))
+                    chg7  = safe(pc.get("7d")  or pc.get("7")  or pc.get("week"))
+                    chg30 = safe(pc.get("30d") or pc.get("30") or pc.get("month"))
                     break
 
             # Image
             img = ""
-            for img_k in ["image","imageUrl","img","imageHiRes","large"]:
-                v = c.get(img_k,"")
-                if isinstance(v, str) and v.startswith("http"): img = v; break
+            for img_k in ["image","imageUrl","img","image_url","large"]:
+                v = c.get(img_k, "")
+                if isinstance(v,str) and v.startswith("http"): img=v; break
             if not img:
                 imgs = c.get("images",{})
                 img = imgs.get("large") or imgs.get("small","")
 
             results.append({
-                "id":       str(c.get("id", c.get("tcgPlayerId",""))),
+                "id":       str(c.get("id","")),
                 "name":     c.get("name",""),
-                "set_id":   set_tcg_id,
+                "set_id":   set_id,
                 "set_name": set_name,
                 "set_year": set_year,
-                "rarity":   RARITY_SHORT.get(rarity, rarity),
+                "rarity":   RARITY_SHORT.get(rarity, rarity) if rarity else "—",
                 "number":   str(c.get("number", c.get("collectorNumber",""))),
                 "img":      img,
                 "price":    price_cad,
@@ -255,11 +190,10 @@ def fetch_set_cards(set_tcg_id, set_name, set_year, api_key):
         return results
     except: return []
 
-
 def rar_pill(r):
-    m = {"SIR":"p-sir","IR":"p-ir","Shiny":"p-shv","SHV":"p-shv",
-         "HR":"p-rr","UR":"p-alt","Secret":"p-gold","RR":"p-alt",
-         "Gold":"p-gold","TG":"p-fa","ACE":"p-ir","Radiant":"p-ir","AR":"p-alt"}
+    m={"SIR":"p-sir","IR":"p-ir","Shiny":"p-shv","SHV":"p-shv","HR":"p-rr",
+       "UR":"p-alt","Secret":"p-gold","RR":"p-rr","Gold":"p-gold",
+       "TG":"p-fa","ACE":"p-ir","Radiant":"p-ir","AR":"p-alt","FA":"p-fa"}
     return f'<span class="pill {m.get(r,"p-def")}">{r}</span>'
 
 def fmt_chg(v):
@@ -270,25 +204,11 @@ def fmt_chg(v):
 # ── Session ──
 if "all_cards"    not in st.session_state: st.session_state.all_cards    = []
 if "loading_done" not in st.session_state: st.session_state.loading_done = False
-if "api_key"      not in st.session_state: st.session_state.api_key      = load_json("data/api_key.json", {}).get("key","pokeprice_free_9ad6928851dc5dafc6242c5615da08b41773d0a4cbaab73c")
+if "set_names"    not in st.session_state: st.session_state.set_names    = []
 
 # ════ SIDEBAR ════
 with st.sidebar:
     st.markdown("### 🃏 The Nasty Model")
-    st.markdown("---")
-
-    # API Key input
-    st.markdown('<span class="sb-section">Clé API PokemonPriceTracker</span>', unsafe_allow_html=True)
-    api_key_input = st.text_input("", value=st.session_state.api_key if st.session_state.api_key else "pokeprice_free_9ad6928851dc5dafc6242c5615da08b41773d0a4cbaab73c",
-        placeholder="pokeprice_free_...", type="password",
-        label_visibility="collapsed")
-    if api_key_input != st.session_state.api_key:
-        st.session_state.api_key = api_key_input
-        save_json("data/api_key.json", {"key": api_key_input})
-        st.session_state.all_cards    = []
-        st.session_state.loading_done = False
-        if os.path.exists(CACHE_FILE): os.remove(CACHE_FILE)
-
     st.markdown("---")
     show_day = st.toggle("⚡ Mode Show Day", value=False)
 
@@ -300,7 +220,7 @@ with st.sidebar:
     period_lbl = period_lbl_map[period_sel]
 
     st.markdown('<span class="sb-section">Set</span>', unsafe_allow_html=True)
-    set_opts   = ["Tous les sets"] + [f"{v['name']} ({k})" for k,v in SETS.items()]
+    set_opts = ["Tous les sets"] + st.session_state.set_names
     set_filter = st.selectbox("", set_opts, label_visibility="collapsed")
 
     st.markdown('<span class="sb-section">Prix C$</span>', unsafe_allow_html=True)
@@ -313,133 +233,100 @@ with st.sidebar:
 
     st.markdown("---")
     n = len(st.session_state.all_cards)
-    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-bottom:8px">{n} cartes · {len(SETS)} sets</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-bottom:8px">{n} cartes · tcgapi.dev</div>', unsafe_allow_html=True)
     if st.button("🔄  Forcer rechargement", type="primary"):
         st.session_state.all_cards    = []
         st.session_state.loading_done = False
+        st.session_state.set_names    = []
+        fetch_pokemon_sets.clear()
+        fetch_set_cards.clear()
         if os.path.exists(CACHE_FILE): os.remove(CACHE_FILE)
         st.rerun()
 
-# ════ HEADER ════
+# ════ LOAD ════
+if not st.session_state.loading_done:
+    # Try cache first
+    if cache_fresh():
+        c = load_json(CACHE_FILE, {})
+        if c.get("cards"):
+            st.session_state.all_cards    = c["cards"]
+            st.session_state.loading_done = True
+            st.session_state.set_names    = sorted(set(x["set_name"] for x in c["cards"]))
+
+if not st.session_state.loading_done:
+    prog = st.progress(0, text="Connexion à tcgapi.dev...")
+
+    # Step 1: get all Pokemon sets
+    sets = fetch_pokemon_sets()
+
+    if not sets:
+        st.error("❌ Impossible de charger les sets depuis tcgapi.dev. Vérifie la clé API.")
+        st.write(f"**Debug:** Tentative sur `{BASE_URL}/sets?game=pokemon`")
+        st.stop()
+
+    prog.progress(5, text=f"{len(sets)} sets Pokémon trouvés...")
+
+    all_cards = []
+    total = len(sets)
+
+    for i, s in enumerate(sets):
+        sid      = s.get("id") or s.get("setId") or s.get("code","")
+        sname    = s.get("name","")
+        syear    = 0
+        rd       = str(s.get("releaseDate","") or s.get("release_date","") or "")
+        if len(rd) >= 4:
+            try: syear = int(rd[:4])
+            except: pass
+
+        cards = fetch_set_cards(sid, sname, syear)
+        all_cards.extend(cards)
+
+        pct = min(99, int(5 + (i+1)/total*94))
+        prog.progress(pct, text=f"{sname} — {len(all_cards)} cartes ({i+1}/{total})")
+
+    prog.progress(100, text=f"✓ {len(all_cards)} cartes chargées")
+    prog.empty()
+
+    st.session_state.all_cards    = all_cards
+    st.session_state.loading_done = True
+    st.session_state.set_names    = sorted(set(x["set_name"] for x in all_cards))
+    save_json(CACHE_FILE, {"cards": all_cards, "ts": datetime.now().isoformat()})
+    st.rerun()
+
+# ════ MAIN ════
 st.markdown(f"""
 <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 0 1.25rem;border-bottom:1px solid #1a1f35;margin-bottom:1.25rem">
   <div style="display:flex;align-items:center;gap:12px">
     <div style="width:40px;height:40px;background:linear-gradient(135deg,#06b6d4,#0891b2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px">🃏</div>
     <div>
       <div style="font-size:20px;font-weight:800;color:#f1f5f9;letter-spacing:-.03em">The Nasty Model</div>
-      <div style="font-size:11px;color:#2d3748">TCGPlayer · prix réels · C$ · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
+      <div style="font-size:11px;color:#2d3748">tcgapi.dev · TCGPlayer prices · C$ · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
     </div>
   </div>
   <div style="display:flex;gap:8px">
     <div style="background:#0d1520;border:1px solid #0891b2;color:#06b6d4;font-size:11px;padding:4px 10px;border-radius:20px;font-weight:600">🇨🇦 CAD</div>
-    <div style="background:#0d1520;border:1px solid #1a1f35;color:#334155;font-size:11px;padding:4px 10px;border-radius:20px">{n} cartes</div>
+    <div style="background:#0d1520;border:1px solid #1a1f35;color:#334155;font-size:11px;padding:4px 10px;border-radius:20px">{len(st.session_state.all_cards)} cartes</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ════ NO API KEY ════
-if not st.session_state.api_key:
-    st.markdown("""
-    <div class="api-key-box">
-      <div style="font-size:32px;margin-bottom:12px">🔑</div>
-      <div style="font-size:16px;font-weight:700;color:#f1f5f9;margin-bottom:8px">Clé API requise</div>
-      <div style="font-size:13px;color:#64748b;margin-bottom:16px">
-        Pour avoir les vrais prix TCGPlayer avec les % de changement 24h/7j/30j,<br>
-        tu as besoin d'une clé API gratuite de PokemonPriceTracker.
-      </div>
-      <div style="font-size:12px;color:#4a5568;background:#080910;border-radius:8px;padding:12px;text-align:left;margin-bottom:12px">
-        1. Va sur <strong style="color:#06b6d4">pokemonpricetracker.com</strong><br>
-        2. Clique <strong>Sign Up</strong> — gratuit, 100 requêtes/jour<br>
-        3. Copie ta clé API<br>
-        4. Colle-la dans la sidebar à gauche
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.stop()
-
-# ════ LOAD DATA ════
-if not st.session_state.loading_done:
-    if cache_is_fresh():
-        cached = load_json(CACHE_FILE, {})
-        cards_cached = cached.get("cards", [])
-        if cards_cached:  # only use cache if it actually has cards
-            st.session_state.all_cards    = cards_cached
-            st.session_state.loading_done = True
-
-if not st.session_state.loading_done:
-    prog = st.progress(0, text="Récupération des sets depuis PokemonPriceTracker...")
-    all_cards = []
-
-    # Step 1: get all sets from the API (uses their own set IDs)
-    api_sets = get_all_set_ids(st.session_state.api_key)
-    if not api_sets:
-        st.error("❌ Impossible de récupérer les sets. Vérifie ta clé API.")
-        st.stop()
-
-    # Filter: only Pokemon sets
-    poke_sets = [s for s in api_sets if "pokemon" in s.get("name","").lower() 
-                 or s.get("game","").lower() in ["pokemon","pokémon"]
-                 or "pok" in str(s.get("tcgPlayerId","")).lower()
-                 or True]  # take all for now
-
-    total = len(poke_sets)
-    prog.progress(5, text=f"{total} sets trouvés — chargement des cartes...")
-
-    stop_flag = False
-    # Show first set structure for debugging
-    if poke_sets:
-        first = poke_sets[0]
-        st.write(f"**Premier set:** {first}")
-
-    for i, s in enumerate(poke_sets):
-        if stop_flag: break
-        set_tcg_id = s.get("tcgPlayerId") or s.get("id","")
-        set_name   = s.get("name","")
-        set_year   = 0
-        try:
-            import re
-            yr = re.search(r"20\d\d", str(s.get("releaseDate","") or s.get("year","") or ""))
-            if yr: set_year = int(yr.group())
-        except: pass
-
-        result = fetch_set_cards(set_tcg_id, set_name, set_year, st.session_state.api_key)
-        if result == "INVALID_KEY":
-            st.error("❌ Clé API invalide.")
-            st.stop()
-        if result == "RATE_LIMIT":
-            st.warning(f"⚠️ Limite 100 req/jour atteinte après {i} sets. Les cartes chargées sont sauvegardées.")
-            stop_flag = True
-        elif isinstance(result, list):
-            all_cards.extend(result)
-
-        pct = min(99, int(5 + (i+1)/total*94))
-        prog.progress(pct, text=f"{set_name} ({i+1}/{total}) — {len(all_cards)} cartes")
-
-    prog.progress(100, text=f"✓ {len(all_cards)} cartes chargées")
-    prog.empty()
-    st.session_state.all_cards    = all_cards
-    st.session_state.loading_done = True
-    save_json(CACHE_FILE, {"cards": all_cards, "ts": datetime.now().isoformat()})
-    st.rerun()
-
-# ════ DISPLAY ════
 df = pd.DataFrame(st.session_state.all_cards) if st.session_state.all_cards else pd.DataFrame()
 
 if df.empty:
-    st.info("Aucune carte chargée. Clique **Forcer rechargement** dans la sidebar.")
+    st.info("Aucune carte. Clique Forcer rechargement.")
     st.stop()
 
+# Filters
 if show_day:        df = df[df[chg_key] >= 10]
 if prix_min > 0:    df = df[df["price"] >= prix_min]
 if prix_max < 5000: df = df[df["price"] <= prix_max]
 if search:          df = df[df["name"].str.lower().str.contains(search.lower(), na=False)]
 if set_filter != "Tous les sets":
-    sf = set_filter.split("(")[-1].rstrip(")")
-    sf_name = SETS.get(sf, {}).get("ppt_id", "")
-    df = df[df["set_id"] == sf_name]
+    df = df[df["set_name"] == set_filter]
 
 df = df.sort_values(chg_key, ascending=False).reset_index(drop=True)
 
+# Show Day banner
 if show_day:
     avg = df[chg_key].mean() if len(df) else 0
     st.markdown(f"""
@@ -469,9 +356,10 @@ if len(df) == 0:
 else:
     items = ""
     for _, row in df.iterrows():
-        chg = row[chg_key]
-        up  = chg > 0.5; dn = chg < -0.5
-        clr = "#10b981" if up else ("#ef4444" if dn else "#64748b")
+        chg   = row[chg_key]
+        up    = chg >  0.5
+        dn    = chg < -0.5
+        clr   = "#10b981" if up else ("#ef4444" if dn else "#64748b")
         arrow = "▲" if up else ("▼" if dn else "")
         pct_str = f"{arrow} +{chg:.1f}%" if up else (f"{arrow} {chg:.1f}%" if dn else "—")
         img_html = f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="card-thumb-ph" style="display:none">🃏</div>' if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
@@ -498,6 +386,7 @@ else:
 </div>"""
     st.markdown(items, unsafe_allow_html=True)
 
+# Export + settings
 st.markdown("<hr style='margin:1.5rem 0'>", unsafe_allow_html=True)
 with st.expander("📋  Export CSV"):
     ex = df[df[chg_key] >= 10].copy() if not show_day else df.copy()
@@ -511,7 +400,8 @@ with st.expander("📋  Export CSV"):
             file_name=f"show_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", type="primary")
 
 with st.expander("⚙️  Paramètres"):
-    if st.button("🗑️  Vider cache"):
+    if st.button("🗑️  Vider cache & tout recharger"):
         st.session_state.all_cards=[]; st.session_state.loading_done=False
+        st.session_state.set_names=[]; fetch_pokemon_sets.clear(); fetch_set_cards.clear()
         if os.path.exists(CACHE_FILE): os.remove(CACHE_FILE)
         st.rerun()
