@@ -255,14 +255,16 @@ with st.sidebar:
         st.session_state.loading_done=False
         st.session_state.episodes=[]
         get_all_episodes.clear()
-        if os.path.exists(CACHE_FILE): os.remove(CACHE_FILE)
+        # Force delete ALL cache files
+        for f in ["data/cards_cache.json","data/price_history.json"]:
+            if os.path.exists(f): os.remove(f)
         st.rerun()
 
 # ════ LOAD ════
 if not st.session_state.loading_done:
     if cache_fresh():
         c=load_json(CACHE_FILE,{})
-        if c.get("cards") and len(c["cards"])>100:
+        if c.get("cards") and len(c["cards"])>100 and c.get("version")==CACHE_VERSION:
             history=load_json(HISTORY_FILE,{})
             for card in c["cards"]:
                 c1,c3,c7,c30=calc_changes(card["id"],card["price"],history)
@@ -419,5 +421,6 @@ with st.expander("⚙️  Paramètres"):
     if st.button("🗑️  Vider cache & recharger"):
         st.session_state.all_cards=[];st.session_state.loading_done=False
         st.session_state.episodes=[];get_all_episodes.clear()
-        if os.path.exists(CACHE_FILE): os.remove(CACHE_FILE)
+        for f in ["data/cards_cache.json","data/price_history.json"]:
+            if os.path.exists(f): os.remove(f)
         st.rerun()
