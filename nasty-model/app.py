@@ -78,14 +78,19 @@ RARITY_SHORT = {
     "Rainbow Rare":"RR","Full Art":"FA","LEGEND":"Legend",
 }
 
-# All sets we want — pokemontcg.io set IDs
+# All sets — verified pokemontcg.io set IDs
+# Mega Evolution is its own series separate from SV
+# SV10 = Destined Rivals, SV9 = Journey Together
 SETS = [
-    ("sv12","Chaos Rising",2026),
-    ("sv11pt5","Perfect Order",2026),
-    ("sv11","Ascended Heroes",2026),
-    ("sv10pt5","Phantasmal Flames",2025),
-    ("sv10","Mega Evolution",2025),
-    ("sv9pt5","Destined Rivals",2025),
+    # ── Mega Evolution series (2025-2026) ──
+    ("me3pt5","Perfect Order",2026),
+    ("me3","Chaos Rising",2026),
+    ("me2pt5","Ascended Heroes",2026),
+    ("me2","Phantasmal Flames",2025),
+    ("me1pt5","White Flare & Black Bolt",2025),
+    ("me1","Mega Evolution",2025),
+    # ── Scarlet & Violet series ──
+    ("sv10","Destined Rivals",2025),
     ("sv9","Journey Together",2025),
     ("sv8pt5","Prismatic Evolutions",2025),
     ("sv8","Surging Sparks",2024),
@@ -99,6 +104,7 @@ SETS = [
     ("sv3","Obsidian Flames",2023),
     ("sv2","Paldea Evolved",2023),
     ("sv1","Scarlet & Violet",2023),
+    # ── Sword & Shield series ──
     ("swsh125","Crown Zenith",2023),
     ("swsh12","Silver Tempest",2022),
     ("swsh11","Lost Origin",2022),
@@ -114,6 +120,7 @@ SETS = [
     ("swsh4","Vivid Voltage",2020),
     ("swsh3","Darkness Ablaze",2020),
     ("swsh2","Rebel Clash",2020),
+    # ── Sun & Moon series ──
     ("sm12","Cosmic Eclipse",2019),
     ("hif","Hidden Fates",2019),
     ("sm11","Unified Minds",2019),
@@ -123,7 +130,10 @@ SETS = [
     ("sm7","Celestial Storm",2018),
     ("sm35","Shining Legends",2017),
     ("sm3","Burning Shadows",2017),
+    # ── XY series ──
     ("xy12","Evolutions",2016),
+    ("xy7","Ancient Origins",2015),
+    ("xy6","Roaring Skies",2015),
 ]
 
 def load_json(p, d):
@@ -310,7 +320,7 @@ with st.sidebar:
     sort_ui = st.selectbox("", ["% gain ↓","Prix ↓","Prix ↑","Nom A→Z"], label_visibility="collapsed")
 
     st.markdown('<span class="sb-section">Set</span>', unsafe_allow_html=True)
-    set_opts   = ["Tous les sets"] + [s[1] for s in SETS]
+    set_opts   = ["Tous les sets"] + sorted(set(s[1] for s in SETS))
     set_filter = st.selectbox("", set_opts, label_visibility="collapsed")
 
     st.markdown('<span class="sb-section">Prix C$</span>', unsafe_allow_html=True)
