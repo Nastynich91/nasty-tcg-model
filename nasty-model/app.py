@@ -154,60 +154,103 @@ def cache_is_fresh():
 def fetch_set_ppt(set_info, api_key):
     """
     Fetch all cards in a set from PokemonPriceTracker.
+    Docs: GET /api/v2/cards?setId={id}&fetchAllInSet=true
     Returns real USD prices with 24h/7d/30d change data.
     """
     ppt_id = set_info.get("ppt_id", "")
     if not ppt_id: return []
     try:
-        url = f"https://www.pokemonpricetracker.com/api/v2/cards"
-        params = {
-            "set": ppt_id,
-            "fetchAllInSet": "true",
-            "includeHistory": "false"
-        }
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "User-Agent": "NastyModel/2.0"
+            "User-Agent": "NastyModel/2.0",
+            "Accept": "application/json"
         }
-        r = requests.get(url, params=params, headers=headers, timeout=20)
+        # PokemonPriceTracker uses setId param with fetchAllInSet
+        url = f"https://www.pokemonpricetracker.com/api/v2/cards"
+        params = {"setId": ppt_id, "fetchAllInSet": "true"}
+        r = requests.get(url, params=params, headers=headers, timeout=25)
+
         if r.status_code == 401: return "INVALID_KEY"
         if r.status_code == 429: return "RATE_LIMIT"
-        if r.status_code != 200: return []
+        if r.status_code == 404:
+            # Try alternate set id format
+            params2 = {"set": ppt_id, "fetchAllInSet": "true"}
+            r = requests.get(url, params=params2, headers=headers, timeout=25)
+            if r.status_code != 200: return []
+        elif r.status_code != 200:
+            return []
 
-        data = r.json().get("data", [])
+        body = r.json()
+        # Handle both {data: [...]} and direct array
+        if isinstance(body, list):
+            cards_raw = body
+        else:
+            cards_raw = body.get("data", body.get("cards", []))
+
         results = []
-        for c in data:
-            rarity = c.get("rarity", "")
+        for c in cards_raw:
+            rarity = (c.get("rarity") or c.get("rarityName") or "")
             if rarity not in TARGET_RARITIES: continue
 
-            pricing = c.get("pricing", {}) or c.get("price", {}) or {}
-            price_usd = (pricing.get("market") or pricing.get("tcgplayer", {}).get("market")
-                        or c.get("marketPrice") or c.get("price"))
-            if not price_usd: continue
-            try: price_usd = float(price_usd)
-            except: continue
-            if price_usd < 0.5: continue
+            # Extract price — try multiple field names
+            price_usd = None
+            for field in ["marketPrice","market_price","price","tcgPlayerPrice"]:
+                v = c.get(field)
+                if v:
+                    try:
+                        fv = float(v)
+                        if fv > 0.5:
+                            price_usd = fv
+                            break
+                    except: pass
 
+            # Try nested pricing objects
+            if not price_usd:
+                for obj_key in ["pricing","prices","tcgplayer"]:
+                    obj = c.get(obj_key, {})
+                    if isinstance(obj, dict):
+                        for sub in ["market","marketPrice","market_price","mid"]:
+                            v = obj.get(sub)
+                            if v:
+                                try:
+                                    fv = float(v)
+                                    if fv > 0.5:
+                                        price_usd = fv
+                                        break
+                                except: pass
+                    if price_usd: break
+
+            if not price_usd: continue
             price_cad = round(price_usd * USD_CAD, 2)
 
-            # Price changes — already in % from the API
-            pc = c.get("price_change", {}) or c.get("priceChange", {}) or {}
-            chg1  = float(pc.get("24h", pc.get("1d",  0)) or 0)
-            chg7  = float(pc.get("7d",  pc.get("7",   0)) or 0)
-            chg30 = float(pc.get("30d", pc.get("30",  0)) or 0)
+            # Price changes — try multiple formats
+            chg1 = chg7 = chg30 = 0.0
+            for pc_key in ["price_change","priceChange","change","price_changes"]:
+                pc = c.get(pc_key)
+                if isinstance(pc, dict):
+                    chg1  = float(pc.get("24h", pc.get("1d", pc.get("day",  0))) or 0)
+                    chg7  = float(pc.get("7d",  pc.get("7",  pc.get("week", 0))) or 0)
+                    chg30 = float(pc.get("30d", pc.get("30", pc.get("month",0))) or 0)
+                    break
 
-            img = (c.get("image") or c.get("imageUrl") or
-                   c.get("images", {}).get("large") or
-                   c.get("images", {}).get("small") or "")
+            # Image
+            img = ""
+            for img_key in ["image","imageUrl","img","imageHiRes"]:
+                v = c.get(img_key, "")
+                if v and v.startswith("http"):
+                    img = v; break
+            if not img:
+                imgs = c.get("images", {})
+                img = imgs.get("large") or imgs.get("small") or ""
 
             results.append({
-                "id":       c.get("id", ""),
-                "name":     c.get("name", ""),
+                "id":       str(c.get("id", c.get("tcgPlayerId",""))),
+                "name":     c.get("name",""),
                 "set_id":   ppt_id,
                 "set_name": set_info.get("name", ppt_id),
                 "set_year": set_info.get("year", 0),
                 "rarity":   RARITY_SHORT.get(rarity, rarity),
-                "number":   str(c.get("number", c.get("collectorNumber", ""))),
+                "number":   str(c.get("number", c.get("collectorNumber", c.get("cardNumber","")))),
                 "img":      img,
                 "price":    price_cad,
                 "chg1":     chg1,
@@ -232,7 +275,7 @@ def fmt_chg(v):
 # ── Session ──
 if "all_cards"    not in st.session_state: st.session_state.all_cards    = []
 if "loading_done" not in st.session_state: st.session_state.loading_done = False
-if "api_key"      not in st.session_state: st.session_state.api_key      = load_json("data/api_key.json", {}).get("key","")
+if "api_key"      not in st.session_state: st.session_state.api_key      = load_json("data/api_key.json", {}).get("key","pokeprice_free_9ad6928851dc5dafc6242c5615da08b41773d0a4cbaab73c")
 
 # ════ SIDEBAR ════
 with st.sidebar:
@@ -241,8 +284,8 @@ with st.sidebar:
 
     # API Key input
     st.markdown('<span class="sb-section">Clé API PokemonPriceTracker</span>', unsafe_allow_html=True)
-    api_key_input = st.text_input("", value=st.session_state.api_key,
-        placeholder="ppt_xxxxxxxxxxxxxxxx", type="password",
+    api_key_input = st.text_input("", value=st.session_state.api_key if st.session_state.api_key else "pokeprice_free_9ad6928851dc5dafc6242c5615da08b41773d0a4cbaab73c",
+        placeholder="pokeprice_free_...", type="password",
         label_visibility="collapsed")
     if api_key_input != st.session_state.api_key:
         st.session_state.api_key = api_key_input
