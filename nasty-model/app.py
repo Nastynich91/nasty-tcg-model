@@ -217,6 +217,7 @@ def fmt_chg(v):
 if "all_cards"    not in st.session_state: st.session_state.all_cards=[]
 if "loading_done" not in st.session_state: st.session_state.loading_done=False
 if "episodes"     not in st.session_state: st.session_state.episodes=[]
+if "force_reload" not in st.session_state: st.session_state.force_reload=False
 
 # ════ SIDEBAR ════
 with st.sidebar:
@@ -253,35 +254,37 @@ with st.sidebar:
     if st.button("🔄  Forcer rechargement",type="primary"):
         st.session_state.all_cards=[]
         st.session_state.loading_done=False
+        st.session_state.force_reload=True
         st.session_state.episodes=[]
         get_all_episodes.clear()
-        # Force delete ALL cache files
-        for f in ["data/cards_cache.json","data/price_history.json"]:
+        for f in ["data/cards_cache.json"]:
             if os.path.exists(f): os.remove(f)
         st.rerun()
 
 # ════ LOAD ════
 if not st.session_state.loading_done:
-    # Try loading from cache first
-    try:
-        c = load_json(CACHE_FILE, {})
-        cards = c.get("cards", [])
-        ver   = c.get("version","")
-        ts    = c.get("ts","")
-        age   = 999
-        if ts:
-            age = (datetime.now()-datetime.fromisoformat(ts)).total_seconds()/3600
-        if cards and len(cards)>100 and ver==CACHE_VERSION and age<CACHE_TTL:
-            history=load_json(HISTORY_FILE,{})
-            for card in cards:
-                c1,c3,c7,c30=calc_changes(card["id"],card["price"],history)
-                card["chg1"]=c1;card["chg3"]=c3;card["chg7"]=c7;card["chg30"]=c30
-            st.session_state.all_cards=cards
-            st.session_state.loading_done=True
-    except Exception as e:
-        pass  # cache broken, will reload
+    # Try cache only if not forced reload
+    if not st.session_state.force_reload:
+        try:
+            c = load_json(CACHE_FILE, {})
+            cards = c.get("cards", [])
+            ver   = c.get("version","")
+            ts    = c.get("ts","")
+            age   = 999
+            if ts:
+                age = (datetime.now()-datetime.fromisoformat(ts)).total_seconds()/3600
+            if cards and len(cards)>100 and ver==CACHE_VERSION and age<CACHE_TTL:
+                history=load_json(HISTORY_FILE,{})
+                for card in cards:
+                    c1,c3,c7,c30=calc_changes(card["id"],card["price"],history)
+                    card["chg1"]=c1;card["chg3"]=c3;card["chg7"]=c7;card["chg30"]=c30
+                st.session_state.all_cards=cards
+                st.session_state.loading_done=True
+        except:
+            pass
 
 if not st.session_state.loading_done:
+    st.session_state.force_reload=False  # reset flag
     prog=st.progress(0,text="Récupération des sets depuis pokemon-api.com...")
 
     # Step 1: get all episodes (1 request)
