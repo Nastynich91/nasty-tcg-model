@@ -123,11 +123,22 @@ def load_all_cards():
     """Main load function — fetches all episodes then all cards."""
     # Step 1: get episodes list
     try:
-        r=requests.get(f"{BASE_URL}/episodes",headers=hdrs(),timeout=20)
-        if r.status_code!=200:
-            return None, f"Episodes API error: HTTP {r.status_code} — {r.text[:300]}"
-        episodes=r.json()
-        if isinstance(episodes,dict): episodes=episodes.get("data",episodes.get("episodes",[]))
+        # Fetch all episode pages
+        episodes=[]
+        page=1
+        while True:
+            r=requests.get(f"{BASE_URL}/episodes",
+                params={"per_page":100,"page":page,"game":"pokemon"},
+                headers=hdrs(),timeout=20)
+            if r.status_code!=200:
+                return None, f"Episodes API error: HTTP {r.status_code} — {r.text[:300]}"
+            body=r.json()
+            eps_page=body if isinstance(body,list) else body.get("data",body.get("episodes",[]))
+            if not eps_page: break
+            episodes.extend(eps_page)
+            paging=body.get("paging",{}) if isinstance(body,dict) else {}
+            if page>=paging.get("total",1): break
+            page+=1
     except Exception as e:
         return None, f"Connection error: {e}"
 
@@ -146,40 +157,50 @@ def load_all_cards():
 
     def fetch_ep(args):
         eid,ename,eyear=args
+        results=[]
         try:
-            r2=requests.get(f"{BASE_URL}/episodes/{eid}/cards",
-                params={"sort":"price_highest"},headers=hdrs(),timeout=20)
-            if r2.status_code!=200: return []
-            data=r2.json()
-            cards=data if isinstance(data,list) else data.get("data",data.get("cards",[]))
-            results=[]
-            for c in cards:
-                prices=c.get("prices",{})
-                tcgp=prices.get("tcg_player",{})
-                cm=prices.get("cardmarket",{})
-                usd=tcgp.get("market_price") or tcgp.get("mid_price")
-                cad=None
-                if usd and float(usd)>=MIN_PRICE_USD:
-                    cad=round(float(usd)*USD_CAD,2)
-                elif cm.get("30d_average") and float(cm["30d_average"])>3:
-                    cad=round(float(cm["30d_average"])*EUR_CAD,2)
-                if not cad: continue
-                img=c.get("image","")
-                rarity=c.get("rarity","")
-                results.append({
-                    "id":str(c.get("id","")),
-                    "name":c.get("name",""),
-                    "set_id":str(eid),
-                    "set_name":ename,
-                    "set_year":eyear,
-                    "rarity":RARITY_SHORT.get(rarity,rarity[:10] if rarity else "—"),
-                    "number":str(c.get("card_number",c.get("number",""))),
-                    "img":img if img and img.startswith("http") else "",
-                    "price":cad,
-                    "chg1":0.0,"chg3":0.0,"chg7":0.0,"chg30":0.0,
-                })
-            return results
-        except: return []
+            page=1
+            while True:
+                r2=requests.get(f"{BASE_URL}/episodes/{eid}/cards",
+                    params={"sort":"price_highest","per_page":100,"page":page},
+                    headers=hdrs(),timeout=20)
+                if r2.status_code!=200: break
+                body=r2.json()
+                # Response format: {"data":[...],"paging":{...},"results":N}
+                cards=body.get("data",[]) if isinstance(body,dict) else body
+                if not cards: break
+                for c in cards:
+                    prices=c.get("prices",{})
+                    tcgp=prices.get("tcg_player",{})
+                    cm=prices.get("cardmarket",{})
+                    usd=tcgp.get("market_price") or tcgp.get("mid_price")
+                    cad=None
+                    if usd and float(usd)>=MIN_PRICE_USD:
+                        cad=round(float(usd)*USD_CAD,2)
+                    elif cm.get("30d_average") and float(cm.get("30d_average",0))>3:
+                        cad=round(float(cm["30d_average"])*EUR_CAD,2)
+                    if not cad: continue
+                    img=c.get("image","")
+                    rarity=c.get("rarity","")
+                    results.append({
+                        "id":str(c.get("id","")),
+                        "name":c.get("name",""),
+                        "set_id":str(eid),
+                        "set_name":ename,
+                        "set_year":eyear,
+                        "rarity":RARITY_SHORT.get(rarity,rarity[:10] if rarity else "—"),
+                        "number":str(c.get("card_number",c.get("number",""))),
+                        "img":img if img and img.startswith("http") else "",
+                        "price":cad,
+                        "chg1":0.0,"chg3":0.0,"chg7":0.0,"chg30":0.0,
+                    })
+                # Check pagination
+                paging=body.get("paging",{}) if isinstance(body,dict) else {}
+                total_pages=paging.get("total",1)
+                if page>=total_pages: break
+                page+=1
+        except: pass
+        return results
 
     with ThreadPoolExecutor(max_workers=5) as ex:
         futures={ex.submit(fetch_ep,e):e for e in eps}
@@ -275,22 +296,8 @@ if need_load:
         st.stop()
 
     if not all_cards:
-        # Debug: show raw API responses
-        try:
-            r_ep = requests.get(f"{BASE_URL}/episodes", headers=hdrs(), timeout=20)
-            st.error(f"❌ Episodes: HTTP {r_ep.status_code}")
-            body = r_ep.json()
-            eps_list = body if isinstance(body,list) else body.get("data", body.get("episodes",[]))
-            st.write(f"**Episodes count:** {len(eps_list)}")
-            if eps_list:
-                st.write(f"**Premier épisode:** {eps_list[0]}")
-                # Try fetching cards for first episode
-                eid = eps_list[0].get("id")
-                r_c = requests.get(f"{BASE_URL}/episodes/{eid}/cards", headers=hdrs(), timeout=20)
-                st.write(f"**Cards for ep {eid}: HTTP {r_c.status_code}**")
-                st.code(r_c.text[:500])
-        except Exception as e2:
-            st.error(f"Debug error: {e2}")
+        st.error("❌ Aucune carte trouvée. Le plan gratuit RapidAPI est peut-être limité à 20 sets sans cartes pour le moment.")
+        st.info("💡 Les sets sont bien trouvés (20 épisodes) mais les cartes retournent 0 résultats. Essaie de rafraîchir demain quand les requêtes resettent.")
         st.stop()
 
     prog.progress(90,text="Sauvegarde du cache...")
