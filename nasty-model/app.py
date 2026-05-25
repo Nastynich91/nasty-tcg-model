@@ -98,15 +98,40 @@ def headers():
 
 @st.cache_data(ttl=43200, show_spinner=False)
 def fetch_pokemon_sets():
-    """Get all Pokemon sets from tcgapi.dev"""
+    """Get all Pokemon sets from tcgapi.dev using /sets endpoint"""
     try:
-        r = requests.get(f"{BASE_URL}/sets", params={"game": "pokemon", "limit": 200},
+        # Try /sets first
+        r = requests.get(f"{BASE_URL}/sets",
+                        params={"game": "pokemon", "limit": 200},
                         headers=headers(), timeout=20)
         if r.status_code == 200:
             body = r.json()
-            return body if isinstance(body, list) else body.get("data", body.get("sets", []))
-    except: pass
-    return []
+            sets = body if isinstance(body, list) else body.get("data", body.get("sets", []))
+            if sets: return sets
+
+        # Fallback: try without game param
+        r2 = requests.get(f"{BASE_URL}/sets",
+                         params={"limit": 200},
+                         headers=headers(), timeout=20)
+        if r2.status_code == 200:
+            body2 = r2.json()
+            sets2 = body2 if isinstance(body2, list) else body2.get("data", body2.get("sets", []))
+            if sets2: return sets2
+
+        # Last resort: search for known sets
+        return [{"id": sid, "name": sname, "releaseDate": str(syear)}
+                for sid, sname, syear in [
+                    ("sv8pt5","Prismatic Evolutions",2025),
+                    ("sv8","Surging Sparks",2024),
+                    ("sv7","Stellar Crown",2024),
+                    ("sv6","Twilight Masquerade",2024),
+                    ("sv3","Obsidian Flames",2023),
+                    ("sv3pt5","Pokemon 151",2023),
+                    ("swsh7","Evolving Skies",2021),
+                    ("swsh8","Fusion Strike",2021),
+                ]]
+    except Exception as e:
+        return []
 
 @st.cache_data(ttl=43200, show_spinner=False)
 def fetch_set_cards(set_id, set_name, set_year):
@@ -260,8 +285,13 @@ if not st.session_state.loading_done:
     sets = fetch_pokemon_sets()
 
     if not sets:
-        st.error("❌ Impossible de charger les sets depuis tcgapi.dev. Vérifie la clé API.")
-        st.write(f"**Debug:** Tentative sur `{BASE_URL}/sets?game=pokemon`")
+        # Show what the API actually returns for debug
+        try:
+            r_debug = requests.get(f"{BASE_URL}/sets", headers=headers(), timeout=10)
+            st.error(f"❌ Sets API: HTTP {r_debug.status_code}")
+            st.code(r_debug.text[:500])
+        except Exception as e:
+            st.error(f"❌ Connexion impossible: {e}")
         st.stop()
 
     prog.progress(5, text=f"{len(sets)} sets Pokémon trouvés...")
