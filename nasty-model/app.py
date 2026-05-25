@@ -371,3 +371,10 @@ with st.expander("⚙️  Paramètres"):
         try: os.remove(CACHE_FILE)
         except: pass
         st.rerun()
+
+    if cards:
+        all_df = pd.DataFrame(cards)
+        set_counts = all_df.groupby(["set_id","set_name","set_year"]).size().reset_index(name="cartes")
+        set_counts = set_counts.sort_values("set_year", ascending=False)
+        st.markdown(f"**{len(set_counts)} sets chargés:**")
+        st.dataframe(set_counts, use_container_width=True, hide_index=True)
