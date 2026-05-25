@@ -444,18 +444,7 @@ if rar_filter != "Toutes": df = df[df["rarity"] == rar_filter]
 if search:          df = df[df["name"].str.lower().str.contains(search.lower(), na=False)]
 if set_filter != "Tous les sets": df = df[df["set_name"] == set_filter]
 
-# Debug: show actual set names in data vs our list
-if set_filter == "Tous les sets" and len(st.session_state.all_cards) > 0:
-    all_df = pd.DataFrame(st.session_state.all_cards)
-    actual_sets = sorted(all_df.groupby(["set_id","set_name"]).size().reset_index(name="n").apply(
-        lambda r: f"{r['set_id']} → {r['set_name']} ({r['n']})", axis=1).tolist())
-    our_names = {s[1] for s in SETS}
-    missing = [s for s in our_names if s not in all_df["set_name"].values]
-    if missing:
-        with st.expander(f"⚠️ {len(missing)} sets vides dans le cache actuel"):
-            st.write("**Sets avec 0 cartes chargées :**", sorted(missing))
-            st.write("**Sets chargés :**")
-            for s in actual_sets: st.write(s)
+
 
 sort_map = {"Prix ↓":("price",False),"% gain ↓":(chg_key,False),"Prix ↑":("price",True),"Nom A→Z":("name",True)}
 sk, sa = sort_map[sort_ui]
