@@ -57,6 +57,7 @@ USD_CAD    = 1.364
 CACHE_FILE    = "data/cards_cache.json"
 HISTORY_FILE  = "data/price_history.json"
 CACHE_TTL     = 12  # hours — refresh prices every 12h
+CACHE_VERSION = "v5"  # bump this to force cache invalidation
 API_KEY    = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL   = "https://api.pokemontcg.io/v2"
 
@@ -326,7 +327,7 @@ with st.sidebar:
     chg_key    = period_map[period_sel]
 
     st.markdown('<span class="sb-section">Trier par</span>', unsafe_allow_html=True)
-    sort_ui = st.selectbox("", ["% gain ↓","Prix ↓","Prix ↑","Nom A→Z"], label_visibility="collapsed")
+    sort_ui = st.selectbox("", ["Prix ↓","% gain ↓","Prix ↑","Nom A→Z"], label_visibility="collapsed")
 
     st.markdown('<span class="sb-section">Set</span>', unsafe_allow_html=True)
     set_opts   = ["Tous les sets"] + sorted(set(s[1] for s in SETS))
@@ -356,7 +357,7 @@ with st.sidebar:
 if not st.session_state.loading_done:
     if cache_fresh():
         c = load_json(CACHE_FILE, {})
-        if c.get("cards"):
+        if c.get("cards") and c.get("version") == CACHE_VERSION:
             # Re-apply history to cached cards (in case history grew since last cache)
             history = load_json(HISTORY_FILE, {})
             for card in c["cards"]:
@@ -404,7 +405,7 @@ if not st.session_state.loading_done:
 
     st.session_state.all_cards    = all_cards
     st.session_state.loading_done = True
-    save_json(CACHE_FILE, {"cards": all_cards, "ts": datetime.now().isoformat()})
+    save_json(CACHE_FILE, {"cards": all_cards, "ts": datetime.now().isoformat(), "version": CACHE_VERSION})
     st.rerun()
 
 # ════ MAIN ════
@@ -443,7 +444,7 @@ if rar_filter != "Toutes": df = df[df["rarity"] == rar_filter]
 if search:          df = df[df["name"].str.lower().str.contains(search.lower(), na=False)]
 if set_filter != "Tous les sets": df = df[df["set_name"] == set_filter]
 
-sort_map = {"% gain ↓":(chg_key,False),"Prix ↓":("price",False),"Prix ↑":("price",True),"Nom A→Z":("name",True)}
+sort_map = {"Prix ↓":("price",False),"% gain ↓":(chg_key,False),"Prix ↑":("price",True),"Nom A→Z":("name",True)}
 sk, sa = sort_map[sort_ui]
 df = df.sort_values(sk, ascending=sa).reset_index(drop=True)
 
