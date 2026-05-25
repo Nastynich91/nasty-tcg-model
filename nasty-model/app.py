@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import json, os, requests, time
+import json, os, requests
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -53,22 +53,30 @@ hr{border:none;border-top:1px solid #1a1f35}
 </style>
 """, unsafe_allow_html=True)
 
-USD_CAD    = 1.364
+USD_CAD       = 1.364
+EUR_CAD       = 1.55
 CACHE_FILE    = "data/cards_cache.json"
 HISTORY_FILE  = "data/price_history.json"
-CACHE_TTL     = 12  # hours — refresh prices every 12h
-CACHE_VERSION = "v6"  # bump this to force cache invalidation
-API_KEY    = "eb69335a-2210-45de-a842-8d8211aa0dbe"
-BASE_URL   = "https://api.pokemontcg.io/v2"
+CACHE_TTL     = 12
+CACHE_VERSION = "rapidapi_v1"
 
-# High-value rarities only
+RAPIDAPI_KEY  = "2cc08eea61msh3a7f590a8538bb3p1ddae6jsn6b129d847fd4"
+RAPIDAPI_HOST = "pokemon-tcg-api.p.rapidapi.com"
+BASE_URL      = "https://pokemon-tcg-api.p.rapidapi.com"
+
+def hdrs():
+    return {
+        "x-rapidapi-key":  RAPIDAPI_KEY,
+        "x-rapidapi-host": RAPIDAPI_HOST,
+        "Content-Type":    "application/json"
+    }
+
 TARGET_RARITIES = {
-    "Special Illustration Rare", "Illustration Rare",
-    "Hyper Rare", "Double Rare", "Shiny Rare",
-    "Shiny Ultra Rare", "Trainer Gallery Rare Holo",
-    "Radiant Rare", "Gold Rare", "Amazing Rare",
-    "ACE SPEC Rare", "Secret Rare", "Ultra Rare",
-    "Rainbow Rare", "Full Art", "LEGEND",
+    "Special Illustration Rare","Illustration Rare","Hyper Rare",
+    "Double Rare","Shiny Rare","Shiny Ultra Rare","Trainer Gallery Rare Holo",
+    "Radiant Rare","Gold Rare","Amazing Rare","ACE SPEC Rare",
+    "Secret Rare","Ultra Rare","Rainbow Rare","Full Art","Rare Secret",
+    "Rare Rainbow","Rare Ultra","Rare Shiny GX","Rare Shiny",
 }
 RARITY_SHORT = {
     "Special Illustration Rare":"SIR","Illustration Rare":"IR",
@@ -76,330 +84,242 @@ RARITY_SHORT = {
     "Shiny Ultra Rare":"SHV","Trainer Gallery Rare Holo":"TG",
     "Radiant Rare":"Radiant","Gold Rare":"Gold","Amazing Rare":"AR",
     "ACE SPEC Rare":"ACE","Secret Rare":"Secret","Ultra Rare":"UR",
-    "Rainbow Rare":"RR","Full Art":"FA","LEGEND":"Legend",
+    "Rainbow Rare":"RR","Full Art":"FA","Rare Secret":"Secret",
+    "Rare Rainbow":"RR","Rare Ultra":"UR","Rare Shiny GX":"Shiny",
+    "Rare Shiny":"Shiny",
 }
 
-# All sets — EXACT pokemontcg.io IDs verified from live API export
-SETS = [
-    # ── Mega Evolution series ──
-    ("me4",    "Chaos Rising",                    2026),
-    ("me3",    "Perfect Order",                   2026),
-    ("me2pt5", "Ascended Heroes",                 2026),
-    ("me2",    "Phantasmal Flames",               2025),
-    ("rsv10pt5","White Flare",                    2025),
-    ("zsv10pt5","Black Bolt",                     2025),
-    ("me1",    "Mega Evolution",                  2025),
-    # ── Scarlet & Violet series ──
-    ("sv10",   "Destined Rivals",                 2025),
-    ("sv9",    "Journey Together",                2025),
-    ("sv8pt5", "Prismatic Evolutions",            2025),
-    ("sv8",    "Surging Sparks",                  2024),
-    ("sv7",    "Stellar Crown",                   2024),
-    ("sv6pt5", "Shrouded Fable",                  2024),
-    ("sv6",    "Twilight Masquerade",             2024),
-    ("sv5",    "Temporal Forces",                 2024),
-    ("sv4pt5", "Paldean Fates",                   2024),
-    ("sv4",    "Paradox Rift",                    2023),
-    ("sv3pt5", "Pokemon 151",                     2023),
-    ("sv3",    "Obsidian Flames",                 2023),
-    ("sv2",    "Paldea Evolved",                  2023),
-    ("sv1",    "Scarlet & Violet",                2023),
-    # ── Sword & Shield series ──
-    ("swsh12pt5gg","Crown Zenith Galarian Gallery",2023),
-    ("swsh12pt5","Crown Zenith",                  2023),
-    ("swsh12tg","Silver Tempest Trainer Gallery",  2022),
-    ("swsh12", "Silver Tempest",                  2022),
-    ("swsh11tg","Lost Origin Trainer Gallery",    2022),
-    ("swsh11", "Lost Origin",                     2022),
-    ("pgo",    "Pokémon GO",                      2022),
-    ("swsh10tg","Astral Radiance Trainer Gallery", 2022),
-    ("swsh10", "Astral Radiance",                 2022),
-    ("swsh9tg","Brilliant Stars Trainer Gallery",  2022),
-    ("swsh9",  "Brilliant Stars",                 2022),
-    ("swsh8",  "Fusion Strike",                   2021),
-    ("cel25",  "Celebrations",                    2021),
-    ("cel25c", "Celebrations Classic Collection", 2021),
-    ("swsh7",  "Evolving Skies",                  2021),
-    ("swsh6",  "Chilling Reign",                  2021),
-    ("swsh5",  "Battle Styles",                   2021),
-    ("swsh45sv","Shining Fates Shiny Vault",      2021),
-    ("swsh45", "Shining Fates",                   2021),
-    ("swsh4",  "Vivid Voltage",                   2020),
-    ("swsh35", "Champion's Path",                 2020),
-    ("swsh3",  "Darkness Ablaze",                 2020),
-    ("swsh2",  "Rebel Clash",                     2020),
-    ("swsh1",  "Sword & Shield",                  2020),
-    # ── Sun & Moon series ──
-    ("sm12",   "Cosmic Eclipse",                  2019),
-    ("sma",    "Hidden Fates Shiny Vault",        2019),
-    ("sm115",  "Hidden Fates",                    2019),
-    ("sm11",   "Unified Minds",                   2019),
-    ("sm10",   "Unbroken Bonds",                  2019),
-    ("sm9",    "Team Up",                         2019),
-    ("sm8",    "Lost Thunder",                    2018),
-    ("sm7",    "Celestial Storm",                 2018),
-    ("sm35",   "Shining Legends",                 2017),
-    ("sm3",    "Burning Shadows",                 2017),
-    # ── XY series ──
-    ("xy12",   "Evolutions",                      2016),
-    ("xy7",    "Ancient Origins",                 2015),
-    ("xy6",    "Roaring Skies",                   2015),
-]
-
-def load_json(p, d):
+def load_json(p,d):
     if os.path.exists(p):
         with open(p) as f: return json.load(f)
     return d
 
-def save_json(p, d):
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-    with open(p, "w") as f: json.dump(d, f, ensure_ascii=False)
-
-def save_price_snapshot(cards):
-    """Save a timestamped price snapshot for each card. Keep 30 days of history."""
-    history = load_json(HISTORY_FILE, {})
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    today   = datetime.now().strftime("%Y-%m-%d")
-
-    for c in cards:
-        cid = c["id"]
-        if cid not in history:
-            history[cid] = []
-        # Add today's price if not already recorded today
-        existing_dates = [e["d"][:10] for e in history[cid]]
-        if today not in existing_dates:
-            history[cid].append({"d": now_str, "p": c["price"]})
-        # Keep only last 35 entries
-        history[cid] = history[cid][-35:]
-
-    save_json(HISTORY_FILE, history)
-    return history
-
-def calc_changes(card_id, current_price, history):
-    """Calculate % price change over different periods."""
-    entries = history.get(card_id, [])
-    if not entries or len(entries) < 2:
-        return 0.0, 0.0, 0.0, 0.0, 0.0
-
-    now = datetime.now()
-
-    def find_price_days_ago(days):
-        target = now - __import__("datetime").timedelta(days=days)
-        # Find closest entry at or before target date
-        best = None
-        for e in entries:
-            try:
-                ed = datetime.strptime(e["d"][:10], "%Y-%m-%d")
-                if ed <= target:
-                    if best is None or ed > datetime.strptime(best["d"][:10], "%Y-%m-%d"):
-                        best = e
-            except: pass
-        return best["p"] if best else None
-
-    def pct(past):
-        if past and past > 0:
-            return round((current_price - past) / past * 100, 2)
-        return 0.0
-
-    p1   = find_price_days_ago(1)
-    p3   = find_price_days_ago(3)
-    p7   = find_price_days_ago(7)
-    p30  = find_price_days_ago(30)
-    # Use oldest available as 6M proxy if we don't have 180 days
-    p_old = entries[0]["p"] if entries else None
-
-    return pct(p1), pct(p3), pct(p7), pct(p30), pct(p_old)
+def save_json(p,d):
+    os.makedirs(os.path.dirname(p),exist_ok=True)
+    with open(p,"w") as f: json.dump(d,f,ensure_ascii=False)
 
 def cache_fresh():
     if not os.path.exists(CACHE_FILE): return False
-    c = load_json(CACHE_FILE, {})
-    ts = c.get("ts")
+    c=load_json(CACHE_FILE,{})
+    if c.get("version")!=CACHE_VERSION: return False
+    ts=c.get("ts")
     if not ts: return False
-    return (datetime.now() - datetime.fromisoformat(ts)).total_seconds() / 3600 < CACHE_TTL
+    return (datetime.now()-datetime.fromisoformat(ts)).total_seconds()/3600 < CACHE_TTL
 
-def fetch_set(set_id, set_name, set_year):
-    """
-    Fetch all valuable cards for a set from pokemontcg.io.
-    - 1000 req/day free with API key
-    - Includes TCGPlayer prices (market, mid, low, high)
-    - Includes card images
-    - One paginated call per set
-    """
-    hdrs = {"X-Api-Key": API_KEY}
-    results = []
-    page = 1
-    page_size = 250
+def save_price_snapshot(cards):
+    history=load_json(HISTORY_FILE,{})
+    today=datetime.now().strftime("%Y-%m-%d")
+    now_str=datetime.now().strftime("%Y-%m-%d %H:%M")
+    for c in cards:
+        cid=c["id"]
+        if cid not in history: history[cid]=[]
+        if today not in [e["d"][:10] for e in history[cid]]:
+            history[cid].append({"d":now_str,"p":c["price"]})
+        history[cid]=history[cid][-35:]
+    save_json(HISTORY_FILE,history)
+    return history
 
-    while True:
-        try:
-            r = requests.get(
-                f"{BASE_URL}/cards",
-                params={
-                    "q": f"set.id:{set_id}",
-                    "select": "id,name,rarity,images,tcgplayer,number,set",
-                    "pageSize": page_size,
-                    "page": page,
-                },
-                headers=hdrs,
-                timeout=20
-            )
-            if r.status_code == 429:
-                time.sleep(2)
-                continue
-            if r.status_code != 200:
-                break
+def calc_changes(card_id,current_price,history):
+    entries=history.get(card_id,[])
+    if not entries or len(entries)<2: return 0.0,0.0,0.0,0.0
+    now=datetime.now()
+    import datetime as dt
+    def find(days):
+        target=now-dt.timedelta(days=days)
+        best=None
+        for e in entries:
+            try:
+                ed=datetime.strptime(e["d"][:10],"%Y-%m-%d")
+                if ed<=target:
+                    if best is None or ed>datetime.strptime(best["d"][:10],"%Y-%m-%d"): best=e
+            except: pass
+        return best["p"] if best else None
+    def pct(past):
+        if past and past>0: return round((current_price-past)/past*100,2)
+        return 0.0
+    return pct(find(1)),pct(find(3)),pct(find(7)),pct(find(30))
 
-            body  = r.json()
-            cards = body.get("data", [])
-            total = body.get("totalCount", 0)
+@st.cache_data(ttl=600, show_spinner=False)
+def get_all_episodes():
+    """Get all Pokemon episodes/sets — 1 API call"""
+    try:
+        r=requests.get(f"{BASE_URL}/episodes",headers=hdrs(),timeout=20)
+        if r.status_code==200:
+            data=r.json()
+            eps=data if isinstance(data,list) else data.get("data",data.get("episodes",[]))
+            return eps
+    except: pass
+    return []
 
-            for c in cards:
-                rarity = c.get("rarity", "")
-                if rarity not in TARGET_RARITIES:
-                    continue
+def fetch_episode_cards(ep_id, ep_name, ep_year):
+    """Fetch all cards for one episode — 1 API call per set"""
+    try:
+        r=requests.get(
+            f"{BASE_URL}/episodes/{ep_id}/cards",
+            params={"sort":"price_highest"},
+            headers=hdrs(),
+            timeout=25
+        )
+        if r.status_code!=200: return []
+        data=r.json()
+        cards=data if isinstance(data,list) else data.get("data",data.get("cards",[]))
 
-                # Extract best price from TCGPlayer
-                prices    = c.get("tcgplayer", {}).get("prices", {})
-                price_usd = None
-                for variant in ["holofoil", "1stEditionHolofoil", "reverseHolofoil", "normal", "unlimitedHolofoil"]:
-                    p = prices.get(variant, {})
-                    m = p.get("market") or p.get("mid")
-                    if m and float(m) > 0:
-                        price_usd = float(m)
-                        break
+        results=[]
+        for c in cards:
+            rarity=c.get("rarity","")
 
-                if not price_usd or price_usd < 2:
-                    continue
+            # Get price — TCGPlayer preferred, Cardmarket fallback
+            prices=c.get("prices",{})
+            tcgp=prices.get("tcg_player",{})
+            cm=prices.get("cardmarket",{})
 
-                price_cad = round(price_usd * USD_CAD, 2)
+            price_usd=tcgp.get("market_price") or tcgp.get("mid_price")
+            price_cad=None
+            if price_usd and float(price_usd)>0:
+                price_cad=round(float(price_usd)*USD_CAD,2)
+            elif cm.get("30d_average"):
+                price_cad=round(float(cm["30d_average"])*EUR_CAD,2)
 
-                # Image
-                imgs = c.get("images", {})
-                img  = imgs.get("large") or imgs.get("small", "")
+            if not price_cad or price_cad<2: continue
 
-                results.append({
-                    "id":       c.get("id", ""),
-                    "name":     c.get("name", ""),
-                    "set_id":   set_id,
-                    "set_name": set_name,
-                    "set_year": set_year,
-                    "rarity":   RARITY_SHORT.get(rarity, rarity),
-                    "number":   c.get("number", ""),
-                    "img":      img,
-                    "price":    price_cad,
-                    # pokemontcg.io doesn't have historical data
-                    # We calculate pseudo-changes from updatedAt
-                    "chg1":  0.0,
-                    "chg7":  0.0,
-                    "chg30": 0.0,
-                    "tcg_updated": c.get("tcgplayer", {}).get("updatedAt", ""),
-                })
+            # Image
+            img=c.get("image","")
+            if not img or not img.startswith("http"):
+                img=""
 
-            if page * page_size >= total or len(cards) < page_size:
-                break
-            page += 1
-
-        except Exception:
-            break
-
-    return results
+            results.append({
+                "id":       str(c.get("id","")),
+                "name":     c.get("name",""),
+                "set_id":   str(ep_id),
+                "set_name": ep_name,
+                "set_year": ep_year,
+                "rarity":   RARITY_SHORT.get(rarity,rarity[:10]) if rarity else "—",
+                "number":   str(c.get("card_number",c.get("number",""))),
+                "img":      img,
+                "price":    price_cad,
+                "chg1":0.0,"chg3":0.0,"chg7":0.0,"chg30":0.0,
+            })
+        return results
+    except: return []
 
 def rar_pill(r):
-    m = {"SIR":"p-sir","IR":"p-ir","Shiny":"p-shv","SHV":"p-shv","HR":"p-rr",
-         "UR":"p-alt","Secret":"p-gold","RR":"p-rr","Gold":"p-gold",
-         "TG":"p-fa","ACE":"p-ir","Radiant":"p-ir","AR":"p-alt","FA":"p-fa"}
+    m={"SIR":"p-sir","IR":"p-ir","Shiny":"p-shv","SHV":"p-shv","HR":"p-rr",
+       "UR":"p-alt","Secret":"p-gold","RR":"p-rr","Gold":"p-gold",
+       "TG":"p-fa","ACE":"p-ir","Radiant":"p-ir","AR":"p-alt","FA":"p-fa"}
     return f'<span class="pill {m.get(r,"p-def")}">{r}</span>'
 
+def fmt_chg(v):
+    if v>0.5:  return f'<span style="color:#10b981;font-size:11px;font-weight:600">▲ +{v:.1f}%</span>'
+    if v<-0.5: return f'<span style="color:#ef4444;font-size:11px;font-weight:600">▼ {v:.1f}%</span>'
+    return '<span style="color:#334155;font-size:11px">—</span>'
+
 # ── Session ──
-if "all_cards"    not in st.session_state: st.session_state.all_cards    = []
-if "loading_done" not in st.session_state: st.session_state.loading_done = False
+if "all_cards"    not in st.session_state: st.session_state.all_cards=[]
+if "loading_done" not in st.session_state: st.session_state.loading_done=False
+if "episodes"     not in st.session_state: st.session_state.episodes=[]
 
 # ════ SIDEBAR ════
 with st.sidebar:
     st.markdown("### 🃏 The Nasty Model")
     st.markdown("---")
-    show_day = st.toggle("⚡ Mode Show Day", value=False, help="Prix les plus élevés et haut potentiel")
+    show_day=st.toggle("⚡ Mode Show Day",value=False)
 
-    st.markdown('<span class="sb-section">Trier par</span>', unsafe_allow_html=True)
-    st.markdown('<span class="sb-section">Période</span>', unsafe_allow_html=True)
-    period_map = {"24h":"chg1","3 jours":"chg3","7 jours":"chg7","1 mois":"chg30"}
-    period_sel = st.selectbox("", list(period_map.keys()), index=2, label_visibility="collapsed")
-    chg_key    = period_map[period_sel]
+    st.markdown('<span class="sb-section">Période</span>',unsafe_allow_html=True)
+    period_map={"24h":"chg1","3 jours":"chg3","7 jours":"chg7","1 mois":"chg30"}
+    period_sel=st.selectbox("",list(period_map.keys()),index=2,label_visibility="collapsed")
+    chg_key=period_map[period_sel]
 
-    st.markdown('<span class="sb-section">Trier par</span>', unsafe_allow_html=True)
-    sort_ui = st.selectbox("", ["Prix ↓","% gain ↓","Prix ↑","Nom A→Z"], label_visibility="collapsed")
+    st.markdown('<span class="sb-section">Trier par</span>',unsafe_allow_html=True)
+    sort_ui=st.selectbox("",["Prix ↓","% gain ↓","Prix ↑","Nom A→Z"],label_visibility="collapsed")
 
-    st.markdown('<span class="sb-section">Set</span>', unsafe_allow_html=True)
-    set_opts   = ["Tous les sets"] + sorted(set(s[1] for s in SETS))
-    set_filter = st.selectbox("", set_opts, label_visibility="collapsed")
+    st.markdown('<span class="sb-section">Set</span>',unsafe_allow_html=True)
+    set_names=sorted(set(c["set_name"] for c in st.session_state.all_cards)) if st.session_state.all_cards else []
+    set_filter=st.selectbox("",["Tous les sets"]+set_names,label_visibility="collapsed")
 
-    st.markdown('<span class="sb-section">Prix C$</span>', unsafe_allow_html=True)
-    ca, cb = st.columns(2)
-    with ca: prix_min = st.number_input("Min", min_value=0, value=0,    step=5)
-    with cb: prix_max = st.number_input("Max", min_value=0, value=5000, step=25)
+    st.markdown('<span class="sb-section">Prix C$</span>',unsafe_allow_html=True)
+    ca,cb=st.columns(2)
+    with ca: prix_min=st.number_input("Min",min_value=0,value=0,step=5)
+    with cb: prix_max=st.number_input("Max",min_value=0,value=5000,step=25)
 
-    st.markdown('<span class="sb-section">Rareté</span>', unsafe_allow_html=True)
-    rar_filter = st.selectbox("", ["Toutes","SIR","IR","HR","RR","SHV","Shiny","Gold","FA","Secret","UR"], label_visibility="collapsed")
+    st.markdown('<span class="sb-section">Rareté</span>',unsafe_allow_html=True)
+    rar_filter=st.selectbox("",["Toutes","SIR","IR","HR","RR","SHV","Shiny","Gold","FA","Secret","UR","TG"],label_visibility="collapsed")
 
-    st.markdown('<span class="sb-section">Recherche</span>', unsafe_allow_html=True)
-    search = st.text_input("", placeholder="Nom de la carte...", label_visibility="collapsed")
+    st.markdown('<span class="sb-section">Recherche</span>',unsafe_allow_html=True)
+    search=st.text_input("",placeholder="Nom...",label_visibility="collapsed")
 
     st.markdown("---")
-    n = len(st.session_state.all_cards)
-    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-bottom:8px">{n} cartes · pokemontcg.io</div>', unsafe_allow_html=True)
-    if st.button("🔄  Forcer rechargement", type="primary"):
-        st.session_state.all_cards    = []
-        st.session_state.loading_done = False
+    n=len(st.session_state.all_cards)
+    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-bottom:8px">{n} cartes · pokemon-api.com</div>',unsafe_allow_html=True)
+    if st.button("🔄  Forcer rechargement",type="primary"):
+        st.session_state.all_cards=[]
+        st.session_state.loading_done=False
+        st.session_state.episodes=[]
+        get_all_episodes.clear()
         if os.path.exists(CACHE_FILE): os.remove(CACHE_FILE)
         st.rerun()
 
 # ════ LOAD ════
 if not st.session_state.loading_done:
     if cache_fresh():
-        c = load_json(CACHE_FILE, {})
-        if c.get("cards") and c.get("version") == CACHE_VERSION and len(c["cards"]) > 500:
-            # Re-apply history to cached cards (in case history grew since last cache)
-            history = load_json(HISTORY_FILE, {})
+        c=load_json(CACHE_FILE,{})
+        if c.get("cards") and len(c["cards"])>100:
+            history=load_json(HISTORY_FILE,{})
             for card in c["cards"]:
-                c1,c3,c7,c30,cold = calc_changes(card["id"], card["price"], history)
-                card["chg1"]=c1; card["chg3"]=c3; card["chg7"]=c7
-                card["chg30"]=c30; card["chg_old"]=cold
-            st.session_state.all_cards    = c["cards"]
-            st.session_state.loading_done = True
+                c1,c3,c7,c30=calc_changes(card["id"],card["price"],history)
+                card["chg1"]=c1;card["chg3"]=c3;card["chg7"]=c7;card["chg30"]=c30
+            st.session_state.all_cards=c["cards"]
+            st.session_state.loading_done=True
 
 if not st.session_state.loading_done:
-    prog  = st.progress(0, text="Connexion à pokemontcg.io...")
-    all_cards = []
-    total = len(SETS)
-    done  = [0]
+    prog=st.progress(0,text="Récupération des sets depuis pokemon-api.com...")
 
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        futures = {ex.submit(fetch_set, sid, sname, syear): (sid,sname,syear) for sid,sname,syear in SETS}
+    # Step 1: get all episodes (1 request)
+    episodes=get_all_episodes()
+    if not episodes:
+        st.error("❌ Impossible de charger les sets. Vérifie la clé API RapidAPI.")
+        st.stop()
+
+    # Filter to Pokemon only and sort by release date desc
+    poke_eps=[]
+    for e in episodes:
+        name=e.get("name","")
+        code=e.get("code","") or e.get("id","")
+        year=0
+        rd=str(e.get("release_date","") or e.get("releaseDate","") or "")
+        if len(rd)>=4:
+            try: year=int(rd[:4])
+            except: pass
+        if year>=2016:  # Only 2016+ sets
+            poke_eps.append((e.get("id"), name, year))
+
+    poke_eps.sort(key=lambda x: x[2], reverse=True)
+    prog.progress(5,text=f"{len(poke_eps)} sets trouvés — chargement des cartes...")
+
+    # Step 2: fetch cards for each episode in parallel
+    all_cards=[]
+    done=[0]
+    total=len(poke_eps)
+
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        futures={ex.submit(fetch_episode_cards,eid,ename,eyear):(eid,ename,eyear) for eid,ename,eyear in poke_eps}
         for f in as_completed(futures):
-            result = f.result() or []
-            all_cards.extend(result)
-            done[0] += 1
-            pct = min(99, int(done[0] / total * 100))
-            prog.progress(pct, text=f"{done[0]}/{total} sets · {len(all_cards)} cartes")
+            cards=f.result() or []
+            all_cards.extend(cards)
+            done[0]+=1
+            pct=min(99,int(5+done[0]/total*94))
+            prog.progress(pct,text=f"{done[0]}/{total} sets · {len(all_cards)} cartes")
 
-    prog.progress(100, text=f"✓ {len(all_cards)} cartes")
+    prog.progress(100,text=f"✓ {len(all_cards)} cartes chargées")
     prog.empty()
 
-    # Save price snapshot for historical tracking
-    history = save_price_snapshot(all_cards)
-
-    # Compute price changes from history
+    history=save_price_snapshot(all_cards)
     for c in all_cards:
-        c1, c3, c7, c30, c_old = calc_changes(c["id"], c["price"], history)
-        c["chg1"]  = c1
-        c["chg3"]  = c3
-        c["chg7"]  = c7
-        c["chg30"] = c30
-        c["chg_old"] = c_old
+        c1,c3,c7,c30=calc_changes(c["id"],c["price"],history)
+        c["chg1"]=c1;c["chg3"]=c3;c["chg7"]=c7;c["chg30"]=c30
 
-    st.session_state.all_cards    = all_cards
-    st.session_state.loading_done = True
-    save_json(CACHE_FILE, {"cards": all_cards, "ts": datetime.now().isoformat(), "version": CACHE_VERSION})
+    st.session_state.all_cards=all_cards
+    st.session_state.loading_done=True
+    save_json(CACHE_FILE,{"cards":all_cards,"ts":datetime.now().isoformat(),"version":CACHE_VERSION})
     st.rerun()
 
 # ════ MAIN ════
@@ -409,7 +329,7 @@ st.markdown(f"""
     <div style="width:40px;height:40px;background:linear-gradient(135deg,#06b6d4,#0891b2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px">🃏</div>
     <div>
       <div style="font-size:20px;font-weight:800;color:#f1f5f9;letter-spacing:-.03em">The Nasty Model</div>
-      <div style="font-size:11px;color:#2d3748">TCGPlayer · prix réels · C$ · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
+      <div style="font-size:11px;color:#2d3748">TCGPlayer + Cardmarket · C$ · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
     </div>
   </div>
   <div style="display:flex;gap:8px">
@@ -417,85 +337,55 @@ st.markdown(f"""
     <div style="background:#0d1520;border:1px solid #1a1f35;color:#334155;font-size:11px;padding:4px 10px;border-radius:20px">{len(st.session_state.all_cards)} cartes</div>
   </div>
 </div>
-""", unsafe_allow_html=True)
+""",unsafe_allow_html=True)
 
-df = pd.DataFrame(st.session_state.all_cards) if st.session_state.all_cards else pd.DataFrame()
-
+df=pd.DataFrame(st.session_state.all_cards) if st.session_state.all_cards else pd.DataFrame()
 if df.empty:
-    st.warning("Aucune carte chargée. Clique **Forcer rechargement**.")
+    st.info("Aucune carte. Clique Forcer rechargement.")
     st.stop()
 
 # Filters
-if show_day:
-    # Show Day = cartes avec gain >= 10% sur 7j OU prix > 50$
-    if "chg7" in df.columns:
-        df = df[(df["chg7"] >= 10) | (df["price"] >= 50)]
-    else:
-        df = df[df["price"] >= 50]
-if prix_min > 0:    df = df[df["price"] >= prix_min]
-if prix_max < 5000: df = df[df["price"] <= prix_max]
-if rar_filter != "Toutes": df = df[df["rarity"] == rar_filter]
-if search:          df = df[df["name"].str.lower().str.contains(search.lower(), na=False)]
-if set_filter != "Tous les sets": df = df[df["set_name"] == set_filter]
+if show_day:        df=df[(df[chg_key]>=10)|(df["price"]>=50)]
+if prix_min>0:      df=df[df["price"]>=prix_min]
+if prix_max<5000:   df=df[df["price"]<=prix_max]
+if rar_filter!="Toutes": df=df[df["rarity"]==rar_filter]
+if search:          df=df[df["name"].str.lower().str.contains(search.lower(),na=False)]
+if set_filter!="Tous les sets": df=df[df["set_name"]==set_filter]
 
-
-
-sort_map = {"Prix ↓":("price",False),"% gain ↓":(chg_key,False),"Prix ↑":("price",True),"Nom A→Z":("name",True)}
-sk, sa = sort_map[sort_ui]
-df = df.sort_values(sk, ascending=sa).reset_index(drop=True)
+sort_map={"Prix ↓":("price",False),"% gain ↓":(chg_key,False),"Prix ↑":("price",True),"Nom A→Z":("name",True)}
+sk,sa=sort_map[sort_ui]
+df=df.sort_values(sk,ascending=sa).reset_index(drop=True)
 
 if show_day:
-    st.markdown(f"""
-    <div class="show-banner">
-      <span style="font-size:26px">⚡</span>
-      <div style="flex:1">
-        <div style="font-size:14px;font-weight:700;color:#06b6d4">MODE SHOW DAY — cartes > CA$50</div>
-        <div style="font-size:12px;color:#0e7490;margin-top:2px">Les cartes les plus précieuses — priorité aux achats au show</div>
-      </div>
-      <div class="stat-box"><div class="stat-v">{len(df)}</div><div class="stat-l">cartes cibles</div></div>
-    </div>
-    """, unsafe_allow_html=True)
+    avg=df[chg_key].mean() if len(df) else 0
+    st.markdown(f"""<div class="show-banner"><span style="font-size:26px">⚡</span>
+    <div style="flex:1"><div style="font-size:14px;font-weight:700;color:#06b6d4">MODE SHOW DAY</div>
+    <div style="font-size:12px;color:#0e7490;margin-top:2px">Gain ≥10% ou prix ≥CA$50 · vendeurs pas encore repriced</div></div>
+    <div class="stat-box" style="margin-right:8px"><div class="stat-v">{len(df)}</div><div class="stat-l">opportunités</div></div>
+    <div class="stat-box"><div class="stat-v">+{avg:.1f}%</div><div class="stat-l">gain moy.</div></div></div>""",unsafe_allow_html=True)
 
-st.markdown(f"""
-<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
-  <div>
-    <span style="font-size:18px;font-weight:800;color:#f1f5f9">biggest market movers</span>
-    <span style="font-size:12px;color:#334155;margin-left:8px">· {period_sel} · trié par {sort_ui}</span>
-  </div>
-  <span style="font-size:12px;color:#2d3748">{len(df)} cartes</span>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(f"""<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+  <div><span style="font-size:18px;font-weight:800;color:#f1f5f9">biggest market movers</span>
+  <span style="font-size:12px;color:#334155;margin-left:8px">· {period_sel} · {sort_ui}</span></div>
+  <span style="font-size:12px;color:#2d3748">{len(df)} cartes</span></div>""",unsafe_allow_html=True)
 
-if len(df) == 0:
-    st.markdown('<div style="text-align:center;padding:4rem;color:#2d3748">Aucune carte.</div>', unsafe_allow_html=True)
-else:
-    items = ""
-    for _, row in df.iterrows():
-        img_html = f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="card-thumb-ph" style="display:none">🃏</div>' if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
-
-        def chg_span(v):
-            if v > 0.5:  return f'<span style="color:#10b981;font-weight:600">▲ +{v:.1f}%</span>'
-            if v < -0.5: return f'<span style="color:#ef4444;font-weight:600">▼ {v:.1f}%</span>'
-            return '<span style="color:#334155">—</span>'
-
-        c1=row.get("chg1",0); c3=row.get("chg3",0); c7=row.get("chg7",0); c30=row.get("chg30",0)
-        active_chg = row.get(chg_key, 0)
-        bs  = '<span class="badge-show">⚡ SHOW</span>' if c7 >= 10 or row["price"] >= 50 else ""
-        clr = "#10b981" if active_chg > 0.5 else "#ef4444" if active_chg < -0.5 else "#64748b"
-        pct_str = f"▲ +{active_chg:.1f}%" if active_chg > 0.5 else (f"▼ {active_chg:.1f}%" if active_chg < -0.5 else "—")
-
-        items += f"""
-<div class="card-item">
-  {img_html}
+items=""
+for _,row in df.iterrows():
+    chg=row[chg_key]; up=chg>0.5; dn=chg<-0.5
+    clr="#10b981" if up else ("#ef4444" if dn else "#64748b")
+    pct_str=f"▲ +{chg:.1f}%" if up else (f"▼ {chg:.1f}%" if dn else "—")
+    img_html=f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="card-thumb-ph" style="display:none">🃏</div>' if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
+    bs='<span class="badge-show">⚡ SHOW</span>' if (row[chg_key]>=10 or row["price"]>=50) else ""
+    items+=f"""<div class="card-item">{img_html}
   <div class="card-info">
     <div class="card-name">{row['name']}{bs}</div>
     <div class="card-set-line">{row['set_name']}</div>
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
     <div style="margin-top:6px;display:flex;gap:14px">
-      <span style="font-size:11px;color:#4a5568">24h: {chg_span(c1)}</span>
-      <span style="font-size:11px;color:#4a5568">3j: {chg_span(c3)}</span>
-      <span style="font-size:11px;color:#4a5568">7j: {chg_span(c7)}</span>
-      <span style="font-size:11px;color:#4a5568">1M: {chg_span(c30)}</span>
+      <span style="font-size:11px;color:#4a5568">24h: {fmt_chg(row['chg1'])}</span>
+      <span style="font-size:11px;color:#4a5568">3j: {fmt_chg(row['chg3'])}</span>
+      <span style="font-size:11px;color:#4a5568">7j: {fmt_chg(row['chg7'])}</span>
+      <span style="font-size:11px;color:#4a5568">1M: {fmt_chg(row['chg30'])}</span>
     </div>
   </div>
   <div class="card-price-block">
@@ -505,26 +395,23 @@ else:
   </div>
 </div>"""
 
-    st.markdown(items, unsafe_allow_html=True)
+st.markdown(items if items else '<div style="text-align:center;padding:4rem;color:#2d3748">Aucune carte.</div>',unsafe_allow_html=True)
 
-# Export + Settings
-st.markdown("<hr style='margin:1.5rem 0'>", unsafe_allow_html=True)
-
-
-
-with st.expander("📋  Export liste d'achat CSV"):
-    ex = df[df["price"] >= 50].copy() if not show_day else df.copy()
-    if len(ex) > 0:
-        out = ex[["name","set_name","rarity","price","number"]].copy()
-        out.columns = ["Carte","Set","Rareté","Prix CA$","#"]
-        out["Offre -15%"] = (out["Prix CA$"]*0.85).round(2)
-        out["Offre -25%"] = (out["Prix CA$"]*0.75).round(2)
-        st.dataframe(out, use_container_width=True, hide_index=True)
-        st.download_button("⬇️ CSV", data=out.to_csv(index=False),
-            file_name=f"show_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", type="primary")
+st.markdown("<hr style='margin:1.5rem 0'>",unsafe_allow_html=True)
+with st.expander("📋  Export CSV"):
+    ex=df.copy()
+    if len(ex)>0:
+        out=ex[["name","set_name","rarity","price","chg1","chg7","chg30"]].copy()
+        out.columns=["Carte","Set","Rareté","Prix CA$","24h %","7j %","30j %"]
+        out["Offre -15%"]=(out["Prix CA$"]*0.85).round(2)
+        out["Offre -25%"]=(out["Prix CA$"]*0.75).round(2)
+        st.dataframe(out,use_container_width=True,hide_index=True)
+        st.download_button("⬇️ CSV",data=out.to_csv(index=False),
+            file_name=f"show_{datetime.now().strftime('%Y%m%d')}.csv",mime="text/csv",type="primary")
 
 with st.expander("⚙️  Paramètres"):
     if st.button("🗑️  Vider cache & recharger"):
-        st.session_state.all_cards=[]; st.session_state.loading_done=False
+        st.session_state.all_cards=[];st.session_state.loading_done=False
+        st.session_state.episodes=[];get_all_episodes.clear()
         if os.path.exists(CACHE_FILE): os.remove(CACHE_FILE)
         st.rerun()
