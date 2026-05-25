@@ -262,15 +262,24 @@ with st.sidebar:
 
 # ════ LOAD ════
 if not st.session_state.loading_done:
-    if cache_fresh():
-        c=load_json(CACHE_FILE,{})
-        if c.get("cards") and len(c["cards"])>100 and c.get("version")==CACHE_VERSION:
+    # Try loading from cache first
+    try:
+        c = load_json(CACHE_FILE, {})
+        cards = c.get("cards", [])
+        ver   = c.get("version","")
+        ts    = c.get("ts","")
+        age   = 999
+        if ts:
+            age = (datetime.now()-datetime.fromisoformat(ts)).total_seconds()/3600
+        if cards and len(cards)>100 and ver==CACHE_VERSION and age<CACHE_TTL:
             history=load_json(HISTORY_FILE,{})
-            for card in c["cards"]:
+            for card in cards:
                 c1,c3,c7,c30=calc_changes(card["id"],card["price"],history)
                 card["chg1"]=c1;card["chg3"]=c3;card["chg7"]=c7;card["chg30"]=c30
-            st.session_state.all_cards=c["cards"]
+            st.session_state.all_cards=cards
             st.session_state.loading_done=True
+    except Exception as e:
+        pass  # cache broken, will reload
 
 if not st.session_state.loading_done:
     prog=st.progress(0,text="Récupération des sets depuis pokemon-api.com...")
