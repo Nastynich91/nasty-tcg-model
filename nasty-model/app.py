@@ -57,15 +57,21 @@ USD_CAD      = 1.364
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
 CACHE_TTL    = 12
-CACHE_VER    = "pokemontcg_v1"
+CACHE_VER    = "pokemontcg_v2"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
+# All valuable rarities — broad list to not miss anything
 TARGET_RARITIES = {
     "Special Illustration Rare","Illustration Rare","Hyper Rare",
     "Double Rare","Shiny Rare","Shiny Ultra Rare","Trainer Gallery Rare Holo",
     "Radiant Rare","Gold Rare","Amazing Rare","ACE SPEC Rare",
     "Secret Rare","Ultra Rare","Rainbow Rare",
+    # Older set rarities
+    "Rare Holo EX","Rare Holo GX","Rare Holo V","Rare Holo VMAX",
+    "Rare Holo VSTAR","Rare Ultra","Rare Rainbow","Rare Secret",
+    "Rare Shiny","Rare Shiny GX","Rare Holo","LEGEND",
+    "Rare Prism Star","Rare BREAK",
 }
 RARITY_SHORT = {
     "Special Illustration Rare":"SIR","Illustration Rare":"IR",
@@ -73,7 +79,11 @@ RARITY_SHORT = {
     "Shiny Ultra Rare":"SHV","Trainer Gallery Rare Holo":"TG",
     "Radiant Rare":"Radiant","Gold Rare":"Gold","Amazing Rare":"AR",
     "ACE SPEC Rare":"ACE","Secret Rare":"Secret","Ultra Rare":"UR",
-    "Rainbow Rare":"RR",
+    "Rainbow Rare":"RR","Rare Holo EX":"EX","Rare Holo GX":"GX",
+    "Rare Holo V":"V","Rare Holo VMAX":"VMAX","Rare Holo VSTAR":"VSTAR",
+    "Rare Ultra":"UR","Rare Rainbow":"RR","Rare Secret":"Secret",
+    "Rare Shiny":"Shiny","Rare Shiny GX":"Shiny","Rare Holo":"Holo",
+    "LEGEND":"Legend","Rare Prism Star":"Prism","Rare BREAK":"BREAK",
 }
 
 def hdrs(): return {"X-Api-Key": API_KEY}
@@ -133,15 +143,26 @@ def get_all_sets():
 def fetch_set_cards(set_id, set_name, set_year):
     """Fetch valuable cards for one set — 1 API call"""
     try:
-        r=requests.get(f"{BASE_URL}/cards",
-            params={
-                "q": f"set.id:{set_id}",
-                "select": "id,name,rarity,images,tcgplayer,number",
-                "pageSize": 250,
-            },
-            headers=hdrs(),timeout=20)
-        if r.status_code!=200: return []
-        cards=r.json().get("data",[])
+        # Fetch all pages
+        cards = []
+        page = 1
+        while True:
+            r=requests.get(f"{BASE_URL}/cards",
+                params={
+                    "q": f"set.id:{set_id}",
+                    "select": "id,name,rarity,images,tcgplayer,number",
+                    "pageSize": 250,
+                    "page": page,
+                },
+                headers=hdrs(),timeout=20)
+            if r.status_code!=200: break
+            body = r.json()
+            page_cards = body.get("data",[])
+            cards.extend(page_cards)
+            total_count = body.get("totalCount", 0)
+            if len(cards) >= total_count or len(page_cards) < 250:
+                break
+            page += 1
         results=[]
         for c in cards:
             rarity=c.get("rarity","")
@@ -152,7 +173,7 @@ def fetch_set_cards(set_id, set_name, set_year):
                 p=prices.get(v,{})
                 m=p.get("market") or p.get("mid")
                 if m and float(m)>0: price_usd=float(m); break
-            if not price_usd or price_usd<3: continue
+            if not price_usd or price_usd<2: continue
             imgs=c.get("images",{})
             results.append({
                 "id":       c.get("id",""),
