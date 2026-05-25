@@ -156,11 +156,21 @@ def get_all_set_ids(api_key):
     try:
         headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
         r = requests.get("https://www.pokemonpricetracker.com/api/v2/sets",
+                        params={"game": "pokemon"},
                         headers=headers, timeout=20)
-        if r.status_code != 200: return []
-        sets = r.json().get("data", [])
+        if r.status_code != 200:
+            st.error(f"Sets API status: {r.status_code} — {r.text[:300]}")
+            return []
+        body = r.json()
+        # Handle both {data:[]} and direct []
+        sets = body if isinstance(body, list) else body.get("data", body.get("sets", []))
+        st.write(f"**Sets trouvés:** {len(sets)}")
+        if sets:
+            st.write(f"**Structure premier set:** {sets[0]}")
         return sets
-    except: return []
+    except Exception as e:
+        st.error(f"Sets exception: {e}")
+        return []
 
 def fetch_set_cards(set_tcg_id, set_name, set_year, api_key):
     """Fetch all cards for one set using tcgPlayerId."""
