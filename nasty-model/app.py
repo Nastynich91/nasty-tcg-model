@@ -503,6 +503,23 @@ else:
 
 # Export + Settings
 st.markdown("<hr style='margin:1.5rem 0'>", unsafe_allow_html=True)
+
+# Show which sets are empty (debug tool)
+with st.expander("🔍  Sets disponibles dans pokemontcg.io"):
+    if st.session_state.all_cards:
+        df_sets = pd.DataFrame(st.session_state.all_cards)
+        set_counts = df_sets.groupby(["set_id","set_name"]).size().reset_index(name="cartes")
+        set_counts = set_counts.sort_values("set_name")
+        all_set_ids = {s[0]: s[1] for s in SETS}
+        st.markdown("**Sets avec cartes :**")
+        st.dataframe(set_counts, use_container_width=True, hide_index=True)
+        empty = [(sid, sname) for sid, sname, _ in SETS 
+                 if sid not in df_sets["set_id"].values]
+        if empty:
+            st.markdown("**Sets vides (ID introuvable dans pokemontcg.io) :**")
+            for sid, sname in empty:
+                st.markdown(f"- `{sid}` → {sname}")
+
 with st.expander("📋  Export liste d'achat CSV"):
     ex = df[df["price"] >= 50].copy() if not show_day else df.copy()
     if len(ex) > 0:
