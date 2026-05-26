@@ -56,7 +56,7 @@ hr{border:none;border-top:1px solid #1a1f35}
 USD_CAD      = 1.364
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
-CACHE_TTL    = 12
+CACHE_TTL    = 24
 CACHE_VER    = "pokemontcg_v2"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
@@ -270,8 +270,15 @@ if need_load:
     # Step 1: get ALL sets from API (1 call)
     all_sets=get_all_sets()
     if not all_sets:
-        st.error("❌ Impossible de contacter pokemontcg.io")
-        st.stop()
+        # API down — use stale cache if available
+        stale = load_json(CACHE_FILE, {})
+        if stale.get("cards"):
+            st.warning("⚠️ pokemontcg.io temporairement inaccessible — affichage des données en cache.")
+            cards = stale["cards"]
+            st.rerun()
+        else:
+            st.error("❌ Impossible de contacter pokemontcg.io et aucun cache disponible. Réessaie dans quelques minutes.")
+            st.stop()
 
     # Filter to 2015+ only
     sets_to_load=[]
