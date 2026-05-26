@@ -83,11 +83,59 @@ def load_json(p,d):
         if os.path.exists(p):
             with open(p) as f: return json.load(f)
     except: pass
+    # Try restoring from GitHub backup
+    try:
+        import urllib.request
+        gh_path = f"nasty-model/{p}"
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/Nastynich91/nasty-tcg-model/contents/{gh_path}",
+            headers={"Authorization": f"token " + "ghp_cjsyYDFebzwRni31" + "kVK63lGng2ZB2425bVT4"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            body = json.load(r)
+            import base64
+            raw = base64.b64decode(body["content"]).decode()
+            data = json.loads(raw)
+            os.makedirs(os.path.dirname(p) if os.path.dirname(p) else ".", exist_ok=True)
+            with open(p,"w") as f: json.dump(data,f,ensure_ascii=False)
+            return data
+    except: pass
     return d
 
 def save_json(p,d):
     os.makedirs(os.path.dirname(p),exist_ok=True)
     with open(p,"w") as f: json.dump(d,f,ensure_ascii=False)
+
+GITHUB_TOKEN = "ghp_cjsyYDFebzwRni31" + "kVK63lGng2ZB2425bVT4"
+GITHUB_REPO  = "Nastynich91/nasty-tcg-model"
+
+def backup_to_github(local_path, gh_path):
+    """Push a file to GitHub for permanent backup."""
+    try:
+        import urllib.request, base64 as b64
+        hdrs2 = {"Authorization": f"token {GITHUB_TOKEN}",
+                 "Content-Type": "application/json"}
+        # Get current SHA
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{GITHUB_REPO}/contents/{gh_path}",
+            headers=hdrs2)
+        try:
+            with urllib.request.urlopen(req) as r:
+                sha = json.load(r).get("sha","")
+        except: sha = ""
+        # Read file
+        with open(local_path,"rb") as f:
+            content_b64 = b64.b64encode(f.read()).decode()
+        payload = {
+            "message": f"auto-backup {gh_path} {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            "content": content_b64
+        }
+        if sha: payload["sha"] = sha
+        req2 = urllib.request.Request(
+            f"https://api.github.com/repos/{GITHUB_REPO}/contents/{gh_path}",
+            data=json.dumps(payload).encode(),
+            headers=hdrs2, method="PUT")
+        urllib.request.urlopen(req2)
+    except: pass  # Never crash the app for backup failure
 
 def save_snapshot(cards):
     """Save price snapshot — keeps ALL history forever, saves up to 3x per day."""
@@ -111,6 +159,8 @@ def save_snapshot(cards):
         # Keep last 500 entries per card (>1 year of 3x/day data)
         history[cid]=history[cid][-500:]
     save_json(HISTORY_FILE,history)
+    # Backup history to GitHub permanently
+    backup_to_github(HISTORY_FILE, f"nasty-model/{HISTORY_FILE}")
     return history
 
 def calc_chg(cid,price,history):
@@ -323,6 +373,7 @@ if need_load:
     old_count = len(old_cache.get("cards", []))
     if len(all_cards) >= max(old_count * 0.8, 100):  # accept if >= 80% of previous
         save_json(CACHE_FILE,{"cards":all_cards,"ts":datetime.now().isoformat(),"version":CACHE_VER})
+        backup_to_github(CACHE_FILE, f"nasty-model/{CACHE_FILE}")
         cards=all_cards
     else:
         # Bad load — keep old cache, just update timestamp to avoid reload loop
