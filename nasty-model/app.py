@@ -56,8 +56,8 @@ hr{border:none;border-top:1px solid #1a1f35}
 USD_CAD      = 1.364
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
-CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v2"
+CACHE_TTL    = 8
+CACHE_VER    = "pokemontcg_v3"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
@@ -100,15 +100,26 @@ def save_json(p,d):
     with open(p,"w") as f: json.dump(d,f,ensure_ascii=False)
 
 def save_snapshot(cards):
+    """Save price snapshot — keeps ALL history forever, saves up to 3x per day."""
     history=load_json(HISTORY_FILE,{})
-    today=datetime.now().strftime("%Y-%m-%d")
-    now_str=datetime.now().strftime("%Y-%m-%d %H:%M")
+    now=datetime.now()
+    now_str=now.strftime("%Y-%m-%d %H:%M")
     for c in cards:
         cid=c["id"]
         if cid not in history: history[cid]=[]
-        if today not in [e["d"][:10] for e in history[cid]]:
+        # Save if last entry was more than 6 hours ago
+        should_save = True
+        if history[cid]:
+            try:
+                last_ts = datetime.strptime(history[cid][-1]["d"], "%Y-%m-%d %H:%M")
+                hours_since = (now - last_ts).total_seconds() / 3600
+                if hours_since < 6:
+                    should_save = False
+            except: pass
+        if should_save:
             history[cid].append({"d":now_str,"p":c["price"]})
-        history[cid]=history[cid][-35:]
+        # Keep last 500 entries per card (>1 year of 3x/day data)
+        history[cid]=history[cid][-500:]
     save_json(HISTORY_FILE,history)
     return history
 
@@ -228,8 +239,8 @@ with st.sidebar:
     st.markdown('<span class="sb-section">Recherche</span>',unsafe_allow_html=True)
     search=st.text_input("",placeholder="Nom...",label_visibility="collapsed")
     st.markdown("---")
-    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-bottom:8px">{len(_cards)} cartes · pokemontcg.io</div>',unsafe_allow_html=True)
-    do_reload=st.button("🔄  Forcer rechargement",type="primary")
+    st.markdown(f'<div style="font-size:11px;color:#2d3748;text-align:center;margin-bottom:8px">{len(_cards)} cartes · mis à jour auto 3x/jour</div>',unsafe_allow_html=True)
+    do_reload = False  # Auto-refresh only
 
 # ════ HEADER ════
 st.markdown(f"""
@@ -261,9 +272,9 @@ if ts:
 need_load = do_reload or not cards or ver!=CACHE_VER or age>CACHE_TTL
 
 if need_load:
+    # Auto reload — never delete history
     if do_reload:
-        try: os.remove(CACHE_FILE)
-        except: pass
+        pass  # no manual reload
 
     prog=st.progress(0, text="Récupération des sets depuis pokemontcg.io...")
 
@@ -395,14 +406,16 @@ with st.expander("📋  Export CSV"):
             file_name=f"show_{datetime.now().strftime('%Y%m%d')}.csv",mime="text/csv",type="primary")
 
 with st.expander("⚙️  Paramètres"):
-    if st.button("🗑️  Vider cache & recharger"):
-        try: os.remove(CACHE_FILE)
-        except: pass
-        st.rerun()
-
     if cards:
         all_df = pd.DataFrame(cards)
         set_counts = all_df.groupby(["set_id","set_name","set_year"]).size().reset_index(name="cartes")
         set_counts = set_counts.sort_values("set_year", ascending=False)
-        st.markdown(f"**{len(set_counts)} sets chargés:**")
+        st.markdown(f"**{len(set_counts)} sets chargés · mise à jour automatique toutes les 8h**")
         st.dataframe(set_counts, use_container_width=True, hide_index=True)
+        
+        # Show history stats
+        hist = load_json(HISTORY_FILE, {})
+        if hist:
+            total_snapshots = sum(len(v) for v in hist.values())
+            oldest = min((v[0]["d"] for v in hist.values() if v), default="—")
+            st.markdown(f"📈 **Historique:** {total_snapshots:,} snapshots · depuis le {oldest[:10]}")
