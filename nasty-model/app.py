@@ -56,8 +56,8 @@ hr{border:none;border-top:1px solid #1a1f35}
 USD_CAD      = 1.364
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
-CACHE_TTL    = 8
-CACHE_VER    = "pokemontcg_v3"
+CACHE_TTL    = 24
+CACHE_VER    = "pokemontcg_v4"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
@@ -326,8 +326,18 @@ if need_load:
         c1,c3,c7,c30=calc_chg(c["id"],c["price"],history)
         c["chg1"]=c1; c["chg3"]=c3; c["chg7"]=c7; c["chg30"]=c30
 
-    save_json(CACHE_FILE,{"cards":all_cards,"ts":datetime.now().isoformat(),"version":CACHE_VER})
-    cards=all_cards
+    # Only save if we got MORE cards than before (sanity check)
+    old_cache = load_json(CACHE_FILE, {})
+    old_count = len(old_cache.get("cards", []))
+    if len(all_cards) >= max(old_count * 0.8, 100):  # accept if >= 80% of previous
+        save_json(CACHE_FILE,{"cards":all_cards,"ts":datetime.now().isoformat(),"version":CACHE_VER})
+        cards=all_cards
+    else:
+        # Bad load — keep old cache, just update timestamp to avoid reload loop
+        st.warning(f"⚠️ Rechargement partiel ({len(all_cards)} cartes vs {old_count} avant) — cache conservé.")
+        old_cache["ts"] = datetime.now().isoformat()
+        save_json(CACHE_FILE, old_cache)
+        cards = old_cache.get("cards", [])
     st.rerun()
 
 # ════ DISPLAY ════
