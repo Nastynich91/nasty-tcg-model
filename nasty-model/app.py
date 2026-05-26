@@ -57,22 +57,11 @@ USD_CAD      = 1.364
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v4"
+CACHE_VER    = "pokemontcg_v5"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
-# All valuable rarities — broad list to not miss anything
-TARGET_RARITIES = {
-    "Special Illustration Rare","Illustration Rare","Hyper Rare",
-    "Double Rare","Shiny Rare","Shiny Ultra Rare","Trainer Gallery Rare Holo",
-    "Radiant Rare","Gold Rare","Amazing Rare","ACE SPEC Rare",
-    "Secret Rare","Ultra Rare","Rainbow Rare",
-    # Older set rarities
-    "Rare Holo EX","Rare Holo GX","Rare Holo V","Rare Holo VMAX",
-    "Rare Holo VSTAR","Rare Ultra","Rare Rainbow","Rare Secret",
-    "Rare Shiny","Rare Shiny GX","Rare Holo","LEGEND",
-    "Rare Prism Star","Rare BREAK",
-}
+# Rarity display labels — NO filtering by rarity, only by price
 RARITY_SHORT = {
     "Special Illustration Rare":"SIR","Illustration Rare":"IR",
     "Hyper Rare":"HR","Double Rare":"RR","Shiny Rare":"Shiny",
@@ -84,6 +73,7 @@ RARITY_SHORT = {
     "Rare Ultra":"UR","Rare Rainbow":"RR","Rare Secret":"Secret",
     "Rare Shiny":"Shiny","Rare Shiny GX":"Shiny","Rare Holo":"Holo",
     "LEGEND":"Legend","Rare Prism Star":"Prism","Rare BREAK":"BREAK",
+    "Promo":"Promo","Rare":"Rare","Common":"Common",
 }
 
 def hdrs(): return {"X-Api-Key": API_KEY}
@@ -177,7 +167,6 @@ def fetch_set_cards(set_id, set_name, set_year):
         results=[]
         for c in cards:
             rarity=c.get("rarity","")
-            if rarity not in TARGET_RARITIES: continue
             prices=c.get("tcgplayer",{}).get("prices",{})
             price_usd=None
             for v in ["holofoil","1stEditionHolofoil","reverseHolofoil","normal","unlimitedHolofoil"]:
@@ -291,15 +280,18 @@ if need_load:
             st.error("❌ Impossible de contacter pokemontcg.io et aucun cache disponible. Réessaie dans quelques minutes.")
             st.stop()
 
-    # Filter to 2015+ only
+    # Include all sets 2015+ AND all promo sets regardless of year
+    PROMO_SET_IDS = {"svp","swshp","xyp","smp","bwp","np","dp","pop","col",
+                     "rsv10pt5","zsv10pt5","me1pt5","cel25c"}
     sets_to_load=[]
     for s in all_sets:
+        sid = s["id"]
         rd=s.get("releaseDate","")
         try:
             year=int(rd[:4]) if rd else 0
         except: year=0
-        if year>=2015:
-            sets_to_load.append((s["id"], s["name"], year))
+        if year>=2015 or sid in PROMO_SET_IDS:
+            sets_to_load.append((sid, s["name"], year))
 
     prog.progress(5, text=f"{len(sets_to_load)} sets trouvés — chargement des cartes...")
 
