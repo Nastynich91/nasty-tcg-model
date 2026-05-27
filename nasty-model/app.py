@@ -57,7 +57,7 @@ USD_CAD      = 1.364
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v6"
+CACHE_VER    = "pokemontcg_v7"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
