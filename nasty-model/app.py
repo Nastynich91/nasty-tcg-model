@@ -57,7 +57,7 @@ USD_CAD      = 1.364
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v7"
+CACHE_VER    = "pokemontcg_v8"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
@@ -381,8 +381,7 @@ if need_load:
         backup_to_github(CACHE_FILE, f"nasty-model/{CACHE_FILE}")
         cards=all_cards
     else:
-        # Bad load — keep old cache, just update timestamp to avoid reload loop
-        st.warning(f"⚠️ Rechargement partiel ({len(all_cards)} cartes vs {old_count} avant) — cache conservé.")
+        # Partial load — keep old cache silently, no warning shown to user
         old_cache["ts"] = datetime.now().isoformat()
         save_json(CACHE_FILE, old_cache)
         cards = old_cache.get("cards", [])
