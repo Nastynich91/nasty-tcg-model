@@ -394,7 +394,7 @@ if not cards:
 
 history=load_json(HISTORY_FILE,{})
 for c in cards:
-    c1,c3,c7,c30=calc_chg(c["id"],c["price"],history)
+    c1,c3,c7,c14,c30,c90,c180,c365=calc_chg(c["id"],c["price"],history)
     c["chg1"]=c1; c["chg3"]=c3; c["chg7"]=c7; c["chg30"]=c30
 
 df=pd.DataFrame(cards)
