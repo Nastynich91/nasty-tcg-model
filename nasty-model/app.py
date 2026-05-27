@@ -57,7 +57,7 @@ USD_CAD      = 1.364
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v5"
+CACHE_VER    = "pokemontcg_v6"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
@@ -166,7 +166,7 @@ def save_snapshot(cards):
 def calc_chg(cid,price,history):
     import datetime as dt
     entries=history.get(cid,[])
-    if len(entries)<2: return 0.0,0.0,0.0,0.0
+    if len(entries)<2: return 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
     now=datetime.now()
     def find(days):
         tgt=now-dt.timedelta(days=days)
@@ -178,7 +178,8 @@ def calc_chg(cid,price,history):
             except: pass
         return best["p"] if best else None
     def pct(p): return round((price-p)/p*100,2) if p and p>0 else 0.0
-    return pct(find(1)),pct(find(3)),pct(find(7)),pct(find(30))
+    return (pct(find(1)),pct(find(3)),pct(find(7)),pct(find(14)),
+            pct(find(30)),pct(find(90)),pct(find(180)),pct(find(365)))
 
 def get_all_sets():
     """Fetch ALL sets from pokemontcg.io — returns list of {id, name, releaseDate}"""
@@ -235,7 +236,7 @@ def fetch_set_cards(set_id, set_name, set_year):
                 "number":   c.get("number",""),
                 "img":      imgs.get("large") or imgs.get("small",""),
                 "price":    round(price_usd*USD_CAD,2),
-                "chg1":0.0,"chg3":0.0,"chg7":0.0,"chg30":0.0,
+                "chg1":0.0,"chg3":0.0,"chg7":0.0,"chg14":0.0,"chg30":0.0,"chg90":0.0,"chg180":0.0,"chg365":0.0,
             })
         return results
     except: return []
@@ -261,7 +262,10 @@ with st.sidebar:
     st.markdown("---")
     show_day=st.toggle("⚡ Mode Show Day",value=False)
     st.markdown('<span class="sb-section">Période</span>',unsafe_allow_html=True)
-    period_map={"24h":"chg1","3 jours":"chg3","7 jours":"chg7","1 mois":"chg30"}
+    period_map={
+        "24h":"chg1","3 jours":"chg3","7 jours":"chg7","14 jours":"chg14",
+        "1 mois":"chg30","3 mois":"chg90","6 mois":"chg180","1 an":"chg365"
+    }
     period_sel=st.selectbox("",list(period_map.keys()),index=2,label_visibility="collapsed")
     chg_key=period_map[period_sel]
     st.markdown('<span class="sb-section">Trier par</span>',unsafe_allow_html=True)
@@ -365,8 +369,9 @@ if need_load:
     # Save history + compute changes
     history=save_snapshot(all_cards)
     for c in all_cards:
-        c1,c3,c7,c30=calc_chg(c["id"],c["price"],history)
-        c["chg1"]=c1; c["chg3"]=c3; c["chg7"]=c7; c["chg30"]=c30
+        c1,c3,c7,c14,c30,c90,c180,c365=calc_chg(c["id"],c["price"],history)
+        c["chg1"]=c1;c["chg3"]=c3;c["chg7"]=c7;c["chg14"]=c14
+        c["chg30"]=c30;c["chg90"]=c90;c["chg180"]=c180;c["chg365"]=c365
 
     # Only save if we got MORE cards than before (sanity check)
     old_cache = load_json(CACHE_FILE, {})
@@ -394,7 +399,7 @@ for c in cards:
     c["chg1"]=c1; c["chg3"]=c3; c["chg7"]=c7; c["chg30"]=c30
 
 df=pd.DataFrame(cards)
-if show_day:        df=df[(df[chg_key]>=10)|(df["price"]>=50)]
+if show_day:        df=df[(df["chg7"]>=10)|(df["price"]>=50)]
 if prix_min>0:      df=df[df["price"]>=prix_min]
 if prix_max<5000:   df=df[df["price"]<=prix_max]
 if rar_filter!="Toutes": df=df[df["rarity"]==rar_filter]
@@ -432,10 +437,15 @@ for _,row in df.iterrows():
     <div class="card-name">{row['name']}{bs}</div>
     <div class="card-set-line">{row['set_name']}</div>
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
-    <div style="margin-top:6px;display:flex;gap:14px">
-      <span style="font-size:11px;color:#4a5568">24h: {fmt_chg(row['chg1'])}</span>
-      <span style="font-size:11px;color:#4a5568">7j: {fmt_chg(row['chg7'])}</span>
-      <span style="font-size:11px;color:#4a5568">1M: {fmt_chg(row['chg30'])}</span>
+    <div style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap">
+      <span style="font-size:11px;color:#4a5568">24h: {fmt_chg(row.get('chg1',0))}</span>
+      <span style="font-size:11px;color:#4a5568">3j: {fmt_chg(row.get('chg3',0))}</span>
+      <span style="font-size:11px;color:#4a5568">7j: {fmt_chg(row.get('chg7',0))}</span>
+      <span style="font-size:11px;color:#4a5568">14j: {fmt_chg(row.get('chg14',0))}</span>
+      <span style="font-size:11px;color:#4a5568">1M: {fmt_chg(row.get('chg30',0))}</span>
+      <span style="font-size:11px;color:#4a5568">3M: {fmt_chg(row.get('chg90',0))}</span>
+      <span style="font-size:11px;color:#4a5568">6M: {fmt_chg(row.get('chg180',0))}</span>
+      <span style="font-size:11px;color:#4a5568">1A: {fmt_chg(row.get('chg365',0))}</span>
     </div>
   </div>
   <div class="card-price-block">
@@ -450,8 +460,9 @@ st.markdown(items if items else '<div style="text-align:center;padding:4rem;colo
 st.markdown("<hr style='margin:1.5rem 0'>",unsafe_allow_html=True)
 with st.expander("📋  Export CSV"):
     if len(df)>0:
-        out=df[["name","set_name","rarity","price","chg1","chg7","chg30"]].copy()
-        out.columns=["Carte","Set","Rareté","Prix CA$","24h %","7j %","30j %"]
+        cols=[c for c in ["name","set_name","rarity","price","chg1","chg3","chg7","chg14","chg30","chg90","chg180","chg365"] if c in df.columns]
+        out=df[cols].copy()
+        out.columns=["Carte","Set","Rareté","Prix CA$","24h %","3j %","7j %","14j %","1M %","3M %","6M %","1A %"][:len(cols)]
         out["Offre -15%"]=(out["Prix CA$"]*0.85).round(2)
         out["Offre -25%"]=(out["Prix CA$"]*0.75).round(2)
         st.dataframe(out,use_container_width=True,hide_index=True)
