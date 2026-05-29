@@ -410,27 +410,26 @@ if need_load:
 
 # ════ DISPLAY ════
 if not cards:
-    st.info("Aucune carte. Clique **Forcer rechargement**.")
+    st.info("Aucune carte.")
     st.stop()
 
-# Force restore history from GitHub if local file is missing or empty
-if not os.path.exists(HISTORY_FILE) or os.path.getsize(HISTORY_FILE) < 1000:
-    _restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
-
-history=load_json(HISTORY_FILE,{})
-if not history:
-    # Last resort: fetch directly
+# Always fetch fresh history from GitHub
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_history_from_github():
     try:
         import urllib.request as _ur, base64 as _b64
         _tok = "ghp_cjsyYDFebzwRni31" + "kVK63lGng2ZB2425bVT4"
         _req=_ur.Request(
             "https://api.github.com/repos/Nastynich91/nasty-tcg-model/contents/nasty-model/data/price_history.json",
             headers={"Authorization":f"token {_tok}"})
-        with _ur.urlopen(_req,timeout=15) as _r:
+        with _ur.urlopen(_req,timeout=20) as _r:
             _d=json.load(_r)
-            history=json.loads(_b64.b64decode(_d["content"].replace("\n","")).decode())
-            save_json(HISTORY_FILE, history)
-    except: pass
+            return json.loads(_b64.b64decode(_d["content"].replace("\n","")).decode())
+    except: return {}
+
+history = get_history_from_github()
+if not history:
+    history = load_json(HISTORY_FILE, {})
 
 for c in cards:
     c1,c3,c7,c14,c30,c90,c180,c365=calc_chg(c["id"],c["price"],history)
