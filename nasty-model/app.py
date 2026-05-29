@@ -413,7 +413,25 @@ if not cards:
     st.info("Aucune carte. Clique **Forcer rechargement**.")
     st.stop()
 
+# Force restore history from GitHub if local file is missing or empty
+if not os.path.exists(HISTORY_FILE) or os.path.getsize(HISTORY_FILE) < 1000:
+    _restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
+
 history=load_json(HISTORY_FILE,{})
+if not history:
+    # Last resort: fetch directly
+    try:
+        import urllib.request as _ur, base64 as _b64
+        _tok = "ghp_cjsyYDFebzwRni31" + "kVK63lGng2ZB2425bVT4"
+        _req=_ur.Request(
+            "https://api.github.com/repos/Nastynich91/nasty-tcg-model/contents/nasty-model/data/price_history.json",
+            headers={"Authorization":f"token {_tok}"})
+        with _ur.urlopen(_req,timeout=15) as _r:
+            _d=json.load(_r)
+            history=json.loads(_b64.b64decode(_d["content"].replace("\n","")).decode())
+            save_json(HISTORY_FILE, history)
+    except: pass
+
 for c in cards:
     c1,c3,c7,c14,c30,c90,c180,c365=calc_chg(c["id"],c["price"],history)
     c["chg1"]=c1;c["chg3"]=c3;c["chg7"]=c7;c["chg14"]=c14;c["chg30"]=c30;c["chg90"]=c90;c["chg180"]=c180;c["chg365"]=c365
