@@ -188,15 +188,25 @@ def calc_chg(cid,price,history):
     entries=history.get(cid,[])
     if len(entries)<2: return 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
     now=datetime.now()
+    
     def find(days):
+        """Find snapshot closest to N days ago, within a window of 2x the period."""
         tgt=now-dt.timedelta(days=days)
+        window=dt.timedelta(days=max(days*1.5, days+2))  # flexible window
         best=None
-        for e in entries:
+        best_diff=None
+        for e in entries[:-1]:  # exclude most recent (current price)
             try:
-                ed=datetime.strptime(e["d"][:10],"%Y-%m-%d")
-                if ed<=tgt and (best is None or ed>datetime.strptime(best["d"][:10],"%Y-%m-%d")): best=e
+                ed=datetime.strptime(e["d"][:16],"%Y-%m-%d %H:%M")
+                diff=abs((ed-tgt).total_seconds())
+                age=(now-ed).total_seconds()/86400
+                # Must be older than current, within window
+                if age>0.1 and age<=days*2+3:
+                    if best_diff is None or diff<best_diff:
+                        best=e; best_diff=diff
             except: pass
         return best["p"] if best else None
+    
     def pct(p): return round((price-p)/p*100,2) if p and p>0 else 0.0
     return (pct(find(1)),pct(find(3)),pct(find(7)),pct(find(14)),
             pct(find(30)),pct(find(90)),pct(find(180)),pct(find(365)))
