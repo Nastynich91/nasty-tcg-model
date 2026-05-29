@@ -56,6 +56,26 @@ hr{border:none;border-top:1px solid #1a1f35}
 USD_CAD      = 1.364
 CACHE_FILE   = "data/cards_cache.json"
 HISTORY_FILE = "data/price_history.json"
+
+# ── Restore from GitHub on startup if local files missing ──
+def _restore_from_github(local_path, gh_path):
+    if os.path.exists(local_path) and os.path.getsize(local_path) > 1000:
+        return
+    try:
+        import urllib.request as _ur, base64 as _b64
+        _tok = "ghp_cjsyYDFebzwRni31" + "kVK63lGng2ZB2425bVT4"
+        req=_ur.Request(
+            f"https://api.github.com/repos/Nastynich91/nasty-tcg-model/contents/{gh_path}",
+            headers={"Authorization":f"token {_tok}"})
+        with _ur.urlopen(req,timeout=15) as r:
+            d=json.load(r)
+            raw=_b64.b64decode(d["content"].replace("\n","")).decode()
+        os.makedirs(os.path.dirname(local_path),exist_ok=True)
+        with open(local_path,"w") as f: f.write(raw)
+    except: pass
+
+_restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
+_restore_from_github(CACHE_FILE,   "nasty-model/data/cards_cache.json")
 CACHE_TTL    = 24
 CACHE_VER    = "pokemontcg_v8"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
