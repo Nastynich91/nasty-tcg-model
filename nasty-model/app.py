@@ -171,7 +171,7 @@ def save_snapshot(cards):
             try:
                 last_ts = datetime.strptime(history[cid][-1]["d"], "%Y-%m-%d %H:%M")
                 hours_since = (now - last_ts).total_seconds() / 3600
-                if hours_since < 6:
+                if hours_since < 12:
                     should_save = False
             except: pass
         if should_save:
