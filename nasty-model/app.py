@@ -269,7 +269,7 @@ with st.sidebar:
     period_sel=st.selectbox("",list(period_map.keys()),index=2,label_visibility="collapsed")
     chg_key=period_map[period_sel]
     st.markdown('<span class="sb-section">Trier par</span>',unsafe_allow_html=True)
-    sort_ui=st.selectbox("",["Prix ↓","% gain ↓","Prix ↑","Nom A→Z"],label_visibility="collapsed")
+    sort_ui=st.selectbox("",["% gain ↓","% gain ↑","Prix ↓","Prix ↑","Nom A→Z"],label_visibility="collapsed")
     st.markdown('<span class="sb-section">Set</span>',unsafe_allow_html=True)
     set_names=sorted(set(c["set_name"] for c in _cards)) if _cards else []
     set_filter=st.selectbox("",["Tous les sets"]+set_names,label_visibility="collapsed")
@@ -405,7 +405,7 @@ if rar_filter!="Toutes": df=df[df["rarity"]==rar_filter]
 if search:          df=df[df["name"].str.lower().str.contains(search.lower(),na=False)]
 if set_filter!="Tous les sets": df=df[df["set_name"]==set_filter]
 
-sort_map={"Prix ↓":("price",False),"% gain ↓":(chg_key,False),"Prix ↑":("price",True),"Nom A→Z":("name",True)}
+sort_map={"% gain ↓":(chg_key,False),"% gain ↑":(chg_key,True),"Prix ↓":("price",False),"Prix ↑":("price",True),"Nom A→Z":("name",True)}
 sk,sa=sort_map[sort_ui]
 df=df.sort_values(sk,ascending=sa).reset_index(drop=True)
 
@@ -454,10 +454,10 @@ for _,row in df.iterrows():
     </div>
   </div>
   <div class="card-price-block">
-    <div class="price-main">CA${row['price']:.2f}</div>
-    <div class="price-change" style="color:{clr}">{pct_str}</div>
-    <div style="font-size:12px;color:{clr};margin-top:1px">{dollar_str}</div>
-    <div class="price-source">{period_sel} · TCGPlayer</div>
+    <div style="font-size:22px;font-weight:800;color:#f1f5f9">CA${row['price']:.2f}</div>
+    <div style="font-size:14px;font-weight:700;color:{clr};margin-top:4px">{pct_str}</div>
+    <div style="font-size:13px;color:{clr};margin-top:1px">{dollar_str}</div>
+    <div style="font-size:10px;color:#334155;margin-top:4px">{period_sel} · TCGPlayer</div>
   </div>
 </div>"""
 
