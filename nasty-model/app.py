@@ -425,9 +425,15 @@ st.markdown(f"""<div style="display:flex;align-items:baseline;justify-content:sp
 
 items=""
 for _,row in df.iterrows():
-    chg=row[chg_key]; up=chg>0.5; dn=chg<-0.5
+    chg=row.get(chg_key,0); up=chg>0.5; dn=chg<-0.5
     clr="#10b981" if up else("#ef4444" if dn else "#64748b")
-    pct_str=f"▲ +{chg:.1f}%" if up else(f"▼ {chg:.1f}%" if dn else "—")
+    arrow="▲" if up else("▼" if dn else "")
+    pct_str=f"{arrow} +{chg:.1f}%" if up else(f"{arrow} {chg:.1f}%" if dn else "—")
+    # Calculate $ change
+    price=row["price"]
+    hist_price=price/(1+chg/100) if chg!=0 else price
+    dollar_chg=price-hist_price
+    dollar_str=f"+CA${dollar_chg:.2f}" if dollar_chg>0 else(f"-CA${abs(dollar_chg):.2f}" if dollar_chg<0 else "")
     img_html=(f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
               f'<div class="card-thumb-ph" style="display:none">🃏</div>') if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
     bs='<span class="badge-show">⚡ SHOW</span>' if(row[chg_key]>=10 or row["price"]>=50) else ""
@@ -450,7 +456,8 @@ for _,row in df.iterrows():
   <div class="card-price-block">
     <div class="price-main">CA${row['price']:.2f}</div>
     <div class="price-change" style="color:{clr}">{pct_str}</div>
-    <div class="price-source">TCGPlayer · USD→CAD</div>
+    <div style="font-size:12px;color:{clr};margin-top:1px">{dollar_str}</div>
+    <div class="price-source">{period_sel} · TCGPlayer</div>
   </div>
 </div>"""
 
