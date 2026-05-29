@@ -186,30 +186,39 @@ def save_snapshot(cards):
 def calc_chg(cid,price,history):
     import datetime as dt
     entries=history.get(cid,[])
-    if len(entries)<2: return 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+    if len(entries)<2: return (0.0,False,0.0,False,0.0,False,0.0,False,0.0,False,0.0,False,0.0,False,0.0,False)
     now=datetime.now()
-    
-    def find(days):
-        """Find snapshot closest to N days ago, within a window of 2x the period."""
-        tgt=now-dt.timedelta(days=days)
-        window=dt.timedelta(days=max(days*1.5, days+2))  # flexible window
+
+    def find(min_days, max_days):
+        """Find snapshot strictly between min_days and max_days ago."""
         best=None
         best_diff=None
-        for e in entries[:-1]:  # exclude most recent (current price)
+        tgt=now-dt.timedelta(days=(min_days+max_days)/2)
+        for e in entries[:-1]:
             try:
                 ed=datetime.strptime(e["d"][:16],"%Y-%m-%d %H:%M")
-                diff=abs((ed-tgt).total_seconds())
                 age=(now-ed).total_seconds()/86400
-                # Must be older than current, within window
-                if age>0.1 and age<=days*2+3:
+                if min_days<=age<=max_days:
+                    diff=abs((ed-tgt).total_seconds())
                     if best_diff is None or diff<best_diff:
                         best=e; best_diff=diff
             except: pass
-        return best["p"] if best else None
-    
-    def pct(p): return round((price-p)/p*100,2) if p and p>0 else 0.0
-    return (pct(find(1)),pct(find(3)),pct(find(7)),pct(find(14)),
-            pct(find(30)),pct(find(90)),pct(find(180)),pct(find(365)))
+        return best
+
+    def pct(e): 
+        if not e: return 0.0, False
+        p=e["p"]
+        return (round((price-p)/p*100,2) if p>0 else 0.0), True
+
+    r1,h1   = pct(find(0.3,  2.5))
+    r3,h3   = pct(find(2.5,  5))
+    r7,h7   = pct(find(5,    10))
+    r14,h14 = pct(find(10,   20))
+    r30,h30 = pct(find(20,   45))
+    r90,h90 = pct(find(45,   135))
+    r180,h180=pct(find(135,  270))
+    r365,h365=pct(find(270,  500))
+    return (r1,h1,r3,h3,r7,h7,r14,h14,r30,h30,r90,h90,r180,h180,r365,h365)
 
 def get_all_sets():
     """Fetch ALL sets from pokemontcg.io — returns list of {id, name, releaseDate}"""
@@ -400,9 +409,11 @@ if need_load:
     # Save history + compute changes
     history=save_snapshot(all_cards)
     for c in all_cards:
-        c1,c3,c7,c14,c30,c90,c180,c365=calc_chg(c["id"],c["price"],history)
-        c["chg1"]=c1;c["chg3"]=c3;c["chg7"]=c7;c["chg14"]=c14
-        c["chg30"]=c30;c["chg90"]=c90;c["chg180"]=c180;c["chg365"]=c365
+        r=calc_chg(c["id"],c["price"],history)
+        c["chg1"]=r[0];c["has1"]=r[1];c["chg3"]=r[2];c["has3"]=r[3]
+        c["chg7"]=r[4];c["has7"]=r[5];c["chg14"]=r[6];c["has14"]=r[7]
+        c["chg30"]=r[8];c["has30"]=r[9];c["chg90"]=r[10];c["has90"]=r[11]
+        c["chg180"]=r[12];c["has180"]=r[13];c["chg365"]=r[14];c["has365"]=r[15]
 
     # Only save if we got MORE cards than before (sanity check)
     old_cache = load_json(CACHE_FILE, {})
@@ -442,8 +453,11 @@ if not history:
     history = load_json(HISTORY_FILE, {})
 
 for c in cards:
-    c1,c3,c7,c14,c30,c90,c180,c365=calc_chg(c["id"],c["price"],history)
-    c["chg1"]=c1;c["chg3"]=c3;c["chg7"]=c7;c["chg14"]=c14;c["chg30"]=c30;c["chg90"]=c90;c["chg180"]=c180;c["chg365"]=c365
+    r=calc_chg(c["id"],c["price"],history)
+    c["chg1"]=r[0];c["has1"]=r[1];c["chg3"]=r[2];c["has3"]=r[3]
+    c["chg7"]=r[4];c["has7"]=r[5];c["chg14"]=r[6];c["has14"]=r[7]
+    c["chg30"]=r[8];c["has30"]=r[9];c["chg90"]=r[10];c["has90"]=r[11]
+    c["chg180"]=r[12];c["has180"]=r[13];c["chg365"]=r[14];c["has365"]=r[15]
 
 df=pd.DataFrame(cards)
 if show_day:        df=df[(df["chg7"]>=10)|(df["price"]>=50)]
@@ -471,6 +485,10 @@ st.markdown(f"""<div style="display:flex;align-items:baseline;justify-content:sp
   <span style="font-size:12px;color:#334155;margin-left:8px">· {period_sel} · {sort_ui}</span></div>
   <span style="font-size:12px;color:#2d3748">{len(df)} cartes</span></div>""",unsafe_allow_html=True)
 
+def _period_span(label, val, has_data):
+    if not has_data: return ""
+    return f'<span>{label} {fmt_chg(val)}</span>'
+
 items=""
 for _,row in df.iterrows():
     chg=float(row.get(chg_key,0) or 0)
@@ -494,14 +512,14 @@ for _,row in df.iterrows():
     <div class="card-set-line">{row['set_name']}</div>
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
     <div style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:#475569">
-      <span>24h {fmt_chg(row.get("chg1",0))}</span>
-      <span>3j {fmt_chg(row.get("chg3",0))}</span>
-      <span>7j {fmt_chg(row.get("chg7",0))}</span>
-      <span>14j {fmt_chg(row.get("chg14",0))}</span>
-      <span>1M {fmt_chg(row.get("chg30",0))}</span>
-      <span>3M {fmt_chg(row.get("chg90",0))}</span>
-      <span>6M {fmt_chg(row.get("chg180",0))}</span>
-      <span>1A {fmt_chg(row.get("chg365",0))}</span>
+      {_period_span("24h", row.get("chg1",0), row.get("has1",False))}
+      {_period_span("3j",  row.get("chg3",0), row.get("has3",False))}
+      {_period_span("7j",  row.get("chg7",0), row.get("has7",False))}
+      {_period_span("14j", row.get("chg14",0),row.get("has14",False))}
+      {_period_span("1M",  row.get("chg30",0),row.get("has30",False))}
+      {_period_span("3M",  row.get("chg90",0),row.get("has90",False))}
+      {_period_span("6M",  row.get("chg180",0),row.get("has180",False))}
+      {_period_span("1A",  row.get("chg365",0),row.get("has365",False))}
     </div>
   </div>
   <div class="card-price-block">
