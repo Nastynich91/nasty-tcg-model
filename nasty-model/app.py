@@ -425,15 +425,18 @@ st.markdown(f"""<div style="display:flex;align-items:baseline;justify-content:sp
 
 items=""
 for _,row in df.iterrows():
-    chg=row.get(chg_key,0); up=chg>0.5; dn=chg<-0.5
+    chg=float(row.get(chg_key,0) or 0)
+    up=chg>0.5; dn=chg<-0.5
     clr="#10b981" if up else("#ef4444" if dn else "#64748b")
     arrow="▲" if up else("▼" if dn else "")
     pct_str=f"{arrow} +{chg:.1f}%" if up else(f"{arrow} {chg:.1f}%" if dn else "—")
-    # Calculate $ change
-    price=row["price"]
-    hist_price=price/(1+chg/100) if chg!=0 else price
-    dollar_chg=price-hist_price
-    dollar_str=f"+CA${dollar_chg:.2f}" if dollar_chg>0 else(f"-CA${abs(dollar_chg):.2f}" if dollar_chg<0 else "")
+    price=float(row["price"])
+    if chg!=0:
+        hist_price=price/(1+chg/100)
+        dollar_chg=price-hist_price
+        dollar_str=f"+CA${dollar_chg:.2f}" if dollar_chg>0 else f"-CA${abs(dollar_chg):.2f}"
+    else:
+        dollar_str=""
     img_html=(f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
               f'<div class="card-thumb-ph" style="display:none">🃏</div>') if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
     bs='<span class="badge-show">⚡ SHOW</span>' if(row[chg_key]>=10 or row["price"]>=50) else ""
@@ -442,15 +445,15 @@ for _,row in df.iterrows():
     <div class="card-name">{row['name']}{bs}</div>
     <div class="card-set-line">{row['set_name']}</div>
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
-    <div style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap">
-      <span style="font-size:11px;color:#4a5568">24h: {fmt_chg(row.get('chg1',0))}</span>
-      <span style="font-size:11px;color:#4a5568">3j: {fmt_chg(row.get('chg3',0))}</span>
-      <span style="font-size:11px;color:#4a5568">7j: {fmt_chg(row.get('chg7',0))}</span>
-      <span style="font-size:11px;color:#4a5568">14j: {fmt_chg(row.get('chg14',0))}</span>
-      <span style="font-size:11px;color:#4a5568">1M: {fmt_chg(row.get('chg30',0))}</span>
-      <span style="font-size:11px;color:#4a5568">3M: {fmt_chg(row.get('chg90',0))}</span>
-      <span style="font-size:11px;color:#4a5568">6M: {fmt_chg(row.get('chg180',0))}</span>
-      <span style="font-size:11px;color:#4a5568">1A: {fmt_chg(row.get('chg365',0))}</span>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+      <span style="font-size:11px;color:#4a5568">24h:&nbsp;{fmt_chg(row.get("chg1",0))}</span>
+      <span style="font-size:11px;color:#4a5568">3j:&nbsp;{fmt_chg(row.get("chg3",0))}</span>
+      <span style="font-size:11px;color:#4a5568">7j:&nbsp;{fmt_chg(row.get("chg7",0))}</span>
+      <span style="font-size:11px;color:#4a5568">14j:&nbsp;{fmt_chg(row.get("chg14",0))}</span>
+      <span style="font-size:11px;color:#4a5568">1M:&nbsp;{fmt_chg(row.get("chg30",0))}</span>
+      <span style="font-size:11px;color:#4a5568">3M:&nbsp;{fmt_chg(row.get("chg90",0))}</span>
+      <span style="font-size:11px;color:#4a5568">6M:&nbsp;{fmt_chg(row.get("chg180",0))}</span>
+      <span style="font-size:11px;color:#4a5568">1A:&nbsp;{fmt_chg(row.get("chg365",0))}</span>
     </div>
   </div>
   <div class="card-price-block">
