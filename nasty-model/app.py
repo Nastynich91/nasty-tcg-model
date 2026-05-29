@@ -503,6 +503,14 @@ for _,row in df.iterrows():
         dollar_str=f"+CA${dollar_chg:.2f}" if dollar_chg>0 else f"-CA${abs(dollar_chg):.2f}"
     else:
         dollar_str=""
+    # Build periods inline
+    _pd = [("24h","chg1","has1"),("3j","chg3","has3"),("7j","chg7","has7"),
+           ("14j","chg14","has14"),("1M","chg30","has30"),
+           ("3M","chg90","has90"),("6M","chg180","has180"),("1A","chg365","has365")]
+    periods_html = " ".join(
+        f'<span>{lbl} {fmt_chg(row.get(ck,0))}</span>'
+        for lbl,ck,hk in _pd if row.get(hk,False)
+    )
     img_html=(f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
               f'<div class="card-thumb-ph" style="display:none">🃏</div>') if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
     bs='<span class="badge-show">⚡ SHOW</span>' if(row[chg_key]>=10 or row["price"]>=50) else ""
@@ -512,14 +520,7 @@ for _,row in df.iterrows():
     <div class="card-set-line">{row['set_name']}</div>
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
     <div style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:#475569">
-      {_period_span("24h", row.get("chg1",0), row.get("has1",False))}
-      {_period_span("3j",  row.get("chg3",0), row.get("has3",False))}
-      {_period_span("7j",  row.get("chg7",0), row.get("has7",False))}
-      {_period_span("14j", row.get("chg14",0),row.get("has14",False))}
-      {_period_span("1M",  row.get("chg30",0),row.get("has30",False))}
-      {_period_span("3M",  row.get("chg90",0),row.get("has90",False))}
-      {_period_span("6M",  row.get("chg180",0),row.get("has180",False))}
-      {_period_span("1A",  row.get("chg365",0),row.get("has365",False))}
+      {periods_html}
     </div>
   </div>
   <div class="card-price-block">
