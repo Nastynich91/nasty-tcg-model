@@ -332,7 +332,8 @@ if ts:
     try: age=(datetime.now()-datetime.fromisoformat(ts)).total_seconds()/3600
     except: pass
 
-need_load = do_reload or not cards or ver!=CACHE_VER or age>CACHE_TTL
+# NEVER reload if we have cards — show them always
+need_load = len(cards) == 0
 
 if need_load:
     # Auto reload — never delete history
