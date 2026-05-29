@@ -483,15 +483,15 @@ for _,row in df.iterrows():
     <div class="card-name">{row['name']}{bs}</div>
     <div class="card-set-line">{row['set_name']}</div>
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
-    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
-      <span style="font-size:11px;color:#4a5568">24h:&nbsp;{fmt_chg(row.get("chg1",0))}</span>
-      <span style="font-size:11px;color:#4a5568">3j:&nbsp;{fmt_chg(row.get("chg3",0))}</span>
-      <span style="font-size:11px;color:#4a5568">7j:&nbsp;{fmt_chg(row.get("chg7",0))}</span>
-      <span style="font-size:11px;color:#4a5568">14j:&nbsp;{fmt_chg(row.get("chg14",0))}</span>
-      <span style="font-size:11px;color:#4a5568">1M:&nbsp;{fmt_chg(row.get("chg30",0))}</span>
-      <span style="font-size:11px;color:#4a5568">3M:&nbsp;{fmt_chg(row.get("chg90",0))}</span>
-      <span style="font-size:11px;color:#4a5568">6M:&nbsp;{fmt_chg(row.get("chg180",0))}</span>
-      <span style="font-size:11px;color:#4a5568">1A:&nbsp;{fmt_chg(row.get("chg365",0))}</span>
+    <div style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;font-size:11px">
+      {f'<span style="background:#1e293b;padding:2px 5px;border-radius:4px"><span style="color:#06b6d4;font-weight:700">24h</span> {fmt_chg(row.get("chg1",0))}</span>' if chg_key=="chg1" else f'<span style="color:#475569">24h {fmt_chg(row.get("chg1",0))}</span>'}
+      {f'<span style="background:#1e293b;padding:2px 5px;border-radius:4px"><span style="color:#06b6d4;font-weight:700">3j</span> {fmt_chg(row.get("chg3",0))}</span>' if chg_key=="chg3" else f'<span style="color:#475569">3j {fmt_chg(row.get("chg3",0))}</span>'}
+      {f'<span style="background:#1e293b;padding:2px 5px;border-radius:4px"><span style="color:#06b6d4;font-weight:700">7j</span> {fmt_chg(row.get("chg7",0))}</span>' if chg_key=="chg7" else f'<span style="color:#475569">7j {fmt_chg(row.get("chg7",0))}</span>'}
+      {f'<span style="background:#1e293b;padding:2px 5px;border-radius:4px"><span style="color:#06b6d4;font-weight:700">14j</span> {fmt_chg(row.get("chg14",0))}</span>' if chg_key=="chg14" else f'<span style="color:#475569">14j {fmt_chg(row.get("chg14",0))}</span>'}
+      {f'<span style="background:#1e293b;padding:2px 5px;border-radius:4px"><span style="color:#06b6d4;font-weight:700">1M</span> {fmt_chg(row.get("chg30",0))}</span>' if chg_key=="chg30" else f'<span style="color:#475569">1M {fmt_chg(row.get("chg30",0))}</span>'}
+      <span style="color:#334155">3M {fmt_chg(row.get("chg90",0))}</span>
+      <span style="color:#334155">6M {fmt_chg(row.get("chg180",0))}</span>
+      <span style="color:#334155">1A {fmt_chg(row.get("chg365",0))}</span>
     </div>
   </div>
   <div class="card-price-block">
