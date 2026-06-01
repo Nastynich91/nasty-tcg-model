@@ -452,6 +452,10 @@ history = get_history_from_github()
 if not history:
     history = load_json(HISTORY_FILE, {})
 
+# Always try to save a new snapshot (function handles 12h minimum internally)
+if cards:
+    history = save_snapshot(cards)
+
 for c in cards:
     r=calc_chg(c["id"],c["price"],history)
     c["chg1"]=r[0];c["has1"]=r[1];c["chg3"]=r[2];c["has3"]=r[3]
