@@ -210,14 +210,14 @@ def calc_chg(cid,price,history):
         p=e["p"]
         return (round((price-p)/p*100,2) if p>0 else 0.0), True
 
-    r1,h1   = pct(find(0.3,  2.5))
-    r3,h3   = pct(find(2.5,  5))
-    r7,h7   = pct(find(5,    10))
-    r14,h14 = pct(find(10,   20))
-    r30,h30 = pct(find(20,   45))
-    r90,h90 = pct(find(45,   135))
-    r180,h180=pct(find(135,  270))
-    r365,h365=pct(find(270,  500))
+    r1,h1   = pct(find(0.3,  4))    # 24h: accept 7h to 4 days
+    r3,h3   = pct(find(2,    6))    # 3j:  accept 2 to 6 days
+    r7,h7   = pct(find(5,    12))   # 7j:  accept 5 to 12 days
+    r14,h14 = pct(find(10,   21))   # 14j
+    r30,h30 = pct(find(20,   50))   # 1M
+    r90,h90 = pct(find(60,   130))  # 3M
+    r180,h180=pct(find(130,  270))  # 6M
+    r365,h365=pct(find(270,  500))  # 1A
     return (r1,h1,r3,h3,r7,h7,r14,h14,r30,h30,r90,h90,r180,h180,r365,h365)
 
 def get_all_sets():
@@ -507,10 +507,11 @@ for _,row in df.iterrows():
     _pd = [("24h","chg1","has1"),("3j","chg3","has3"),("7j","chg7","has7"),
            ("14j","chg14","has14"),("1M","chg30","has30"),
            ("3M","chg90","has90"),("6M","chg180","has180"),("1A","chg365","has365")]
-    periods_html = " ".join(
-        f'<span>{lbl} {fmt_chg(row.get(ck,0))}</span>'
-        for lbl,ck,hk in _pd if row.get(hk,False)
-    )
+    def _pfmt(lbl, ck, hk):
+        if not row.get(hk, False):
+            return f'<span style="color:#2d3748">{lbl} <span style="color:#374151">ND</span></span>'
+        return f'<span>{lbl} {fmt_chg(row.get(ck,0))}</span>'
+    periods_html = " ".join(_pfmt(lbl,ck,hk) for lbl,ck,hk in _pd)
     img_html=(f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
               f'<div class="card-thumb-ph" style="display:none">🃏</div>') if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
     bs='<span class="badge-show">⚡ SHOW</span>' if(row[chg_key]>=10 or row["price"]>=50) else ""
