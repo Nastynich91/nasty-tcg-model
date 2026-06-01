@@ -513,8 +513,8 @@ for _,row in df.iterrows():
            ("3M","chg90","has90"),("6M","chg180","has180"),("1A","chg365","has365")]
     def _pfmt(lbl, ck, hk):
         if not row.get(hk, False):
-            return f'<span style="color:#2d3748">{lbl} <span style="color:#374151">ND</span></span>'
-        return f'<span>{lbl} {fmt_chg(row.get(ck,0))}</span>'
+            return f'<span style="color:#2d3748;font-size:11px">{lbl} <span style="color:#2d3748">ND</span></span>'
+        return f'<span style="font-size:11px">{lbl} {fmt_chg(row.get(ck,0))}</span>'
     periods_html = " ".join(_pfmt(lbl,ck,hk) for lbl,ck,hk in _pd)
     img_html=(f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
               f'<div class="card-thumb-ph" style="display:none">🃏</div>') if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
