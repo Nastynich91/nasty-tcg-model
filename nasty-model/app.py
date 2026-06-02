@@ -77,7 +77,7 @@ def _restore_from_github(local_path, gh_path):
 _restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
 _restore_from_github(CACHE_FILE,   "nasty-model/data/cards_cache.json")
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v10"
+CACHE_VER    = "pokemontcg_v11"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
@@ -474,7 +474,10 @@ if cards:
     history = save_snapshot(cards)
 
 for c in cards:
-    r=calc_chg(c["id"],c["price"],history)
+    if history:
+        r=calc_chg(c["id"],c["price"],history)
+    else:
+        r=(0.0,False)*9
     c["chg12"]=r[0];c["has12"]=r[1];c["chg1"]=r[2];c["has1"]=r[3]
     c["chg3"]=r[4];c["has3"]=r[5];c["chg7"]=r[6];c["has7"]=r[7]
     c["chg14"]=r[8];c["has14"]=r[9];c["chg30"]=r[10];c["has30"]=r[11]
