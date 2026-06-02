@@ -59,6 +59,9 @@ HISTORY_FILE = "data/price_history.json"
 
 # ── Restore from GitHub on startup if local files missing ──
 def _restore_from_github(local_path, gh_path):
+    # Only restore cards cache, never history (history must start fresh)
+    if "price_history" in local_path:
+        return
     if os.path.exists(local_path) and os.path.getsize(local_path) > 1000:
         return
     try:
@@ -77,7 +80,7 @@ def _restore_from_github(local_path, gh_path):
 _restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
 _restore_from_github(CACHE_FILE,   "nasty-model/data/cards_cache.json")
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v11"
+CACHE_VER    = "pokemontcg_v12"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
@@ -462,7 +465,8 @@ def get_history_from_github():
             headers={"Authorization":f"token {_tok}"})
         with _ur.urlopen(_req,timeout=20) as _r:
             _d=json.load(_r)
-            return json.loads(_b64.b64decode(_d["content"].replace("\n","")).decode())
+            hist=json.loads(_b64.b64decode(_d["content"].replace("\n","")).decode())
+            return hist  # could be {} if wiped
     except: return {}
 
 history = get_history_from_github()
@@ -545,16 +549,13 @@ for _,row in df.iterrows():
     <div class="card-name">{row['name']}{bs}</div>
     <div class="card-set-line">{row['set_name']}</div>
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
-
+    <div style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;font-size:11px">{periods_html}</div>
   </div>
-  <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
-      {periods_html}
-    </div>
   <div class="card-price-block">
-    <div style="font-size:22px;font-weight:800;color:#f1f5f9">CA${row['price']:.2f}</div>
-    <div style="font-size:14px;font-weight:700;color:{clr};margin-top:4px">{pct_str}</div>
-    <div style="font-size:13px;color:{clr};margin-top:1px">{dollar_str}</div>
-    <div style="font-size:10px;color:#334155;margin-top:4px">{period_sel} · TCGPlayer</div>
+    <div class="price-main">CA${row['price']:.2f}</div>
+    <div class="price-change" style="color:{clr}">{pct_str}</div>
+    <div style="font-size:12px;color:{clr};margin-top:1px">{dollar_str}</div>
+    <div class="price-source">{period_sel} · TCGPlayer</div>
   </div>
 </div>"""
 
