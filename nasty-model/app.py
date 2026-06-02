@@ -526,14 +526,7 @@ for _,row in df.iterrows():
     else:
         dollar_str=""
     # Build periods inline
-    _pd = [("12h","chg12","has12"),("24h","chg1","has1"),("3j","chg3","has3"),
-           ("7j","chg7","has7"),("14j","chg14","has14"),("1M","chg30","has30"),
-           ("3M","chg90","has90"),("6M","chg180","has180"),("1A","chg365","has365")]
-    def _pfmt(lbl, ck, hk):
-        if not row.get(hk, False):
-            return f'<span style="color:#2d3748;font-size:11px">{lbl} <span style="color:#2d3748">ND</span></span>'
-        return f'<span style="font-size:11px">{lbl} {fmt_chg(row.get(ck,0))}</span>'
-    periods_html = " ".join(_pfmt(lbl,ck,hk) for lbl,ck,hk in _pd)
+    periods_html = ""  # hidden until history accumulates
     img_html=(f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
               f'<div class="card-thumb-ph" style="display:none">🃏</div>') if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
     bs='<span class="badge-show">⚡ SHOW</span>' if(row[chg_key]>=10 or row["price"]>=50) else ""
@@ -542,9 +535,7 @@ for _,row in df.iterrows():
     <div class="card-name">{row['name']}{bs}</div>
     <div class="card-set-line">{row['set_name']}</div>
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
-    <div style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:#475569">
-      {periods_html}
-    </div>
+
   </div>
   <div class="card-price-block">
     <div style="font-size:22px;font-weight:800;color:#f1f5f9">CA${row['price']:.2f}</div>
