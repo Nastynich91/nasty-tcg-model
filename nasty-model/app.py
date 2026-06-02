@@ -77,7 +77,7 @@ def _restore_from_github(local_path, gh_path):
 _restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
 _restore_from_github(CACHE_FILE,   "nasty-model/data/cards_cache.json")
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v9"
+CACHE_VER    = "pokemontcg_v10"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
@@ -526,7 +526,14 @@ for _,row in df.iterrows():
     else:
         dollar_str=""
     # Build periods inline
-    periods_html = ""  # hidden until history accumulates
+    _pd = [("12h","chg12","has12"),("24h","chg1","has1"),("3j","chg3","has3"),
+           ("7j","chg7","has7"),("14j","chg14","has14"),("1M","chg30","has30"),
+           ("3M","chg90","has90"),("6M","chg180","has180"),("1A","chg365","has365")]
+    def _pfmt(lbl, ck, hk):
+        if not row.get(hk, False):
+            return f'<span style="color:#334155;font-size:11px">{lbl} <span style="color:#1e293b">ND</span></span>'
+        return f'<span style="font-size:11px">{lbl} {fmt_chg(row.get(ck,0))}</span>'
+    periods_html = " ".join(_pfmt(lbl,ck,hk) for lbl,ck,hk in _pd)
     img_html=(f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
               f'<div class="card-thumb-ph" style="display:none">🃏</div>') if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
     bs='<span class="badge-show">⚡ SHOW</span>' if(row[chg_key]>=10 or row["price"]>=50) else ""
@@ -537,6 +544,9 @@ for _,row in df.iterrows():
     <div class="card-meta">{rar_pill(row['rarity'])} · #{row['number']} · {row['set_year']}</div>
 
   </div>
+  <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+      {periods_html}
+    </div>
   <div class="card-price-block">
     <div style="font-size:22px;font-weight:800;color:#f1f5f9">CA${row['price']:.2f}</div>
     <div style="font-size:14px;font-weight:700;color:{clr};margin-top:4px">{pct_str}</div>
