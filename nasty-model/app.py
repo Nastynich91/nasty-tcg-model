@@ -473,9 +473,18 @@ history = get_history_from_github()
 if not history:
     history = load_json(HISTORY_FILE, {})
 
-# Always try to save a new snapshot (function handles 12h minimum internally)
+# Only save snapshot if 11h+ since last one (GitHub Actions pings at 6h & 18h UTC)
 if cards:
-    history = save_snapshot(cards)
+    last_snap = None
+    for entries in list(history.values())[:10]:
+        if entries:
+            try:
+                t=datetime.strptime(entries[-1]["d"],"%Y-%m-%d %H:%M")
+                if last_snap is None or t>last_snap: last_snap=t
+            except: pass
+    hours_since = 999 if not last_snap else (datetime.now()-last_snap).total_seconds()/3600
+    if hours_since >= 11:
+        history = save_snapshot(cards)
 
 for c in cards:
     if history:
