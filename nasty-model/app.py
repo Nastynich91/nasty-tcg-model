@@ -185,38 +185,37 @@ def save_snapshot(cards):
 
 def calc_chg(cid, price, history):
     """
-    Smart price change calculator.
-    For each period, finds the snapshot closest to that period ago.
-    Accepts a snapshot if it falls within 50% of the target window.
-    E.g. for 24h: accepts snapshots between 12h and 36h ago.
+    Simple: compare latest price to the snapshot closest to N days ago.
+    No windows, no complexity — just find the nearest snapshot to the target date.
+    If no snapshot exists far enough back, return has_data=False.
     """
     import datetime as dt
     entries = history.get(cid, [])
     if len(entries) < 2:
-        return (0.0,False)*8
+        return (0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False)
 
     now = datetime.now()
-    # Sort entries oldest first, exclude the very latest (current)
-    sorted_entries = sorted(entries[:-1], 
-        key=lambda e: e["d"])
+    past_entries = entries[:-1]  # all except most recent
 
-    def find_nearest(target_days):
+    def find(target_days):
+        """Find snapshot closest to target_days ago.
+        Only returns a result if there's a snapshot at least target_days*0.5 old.
+        """
         tgt = now - dt.timedelta(days=target_days)
-        # Accept window: 50% on each side of target
-        min_age = target_days * 0.5
-        max_age = target_days * 1.5 + 1  # +1 day buffer for gaps
-        
+        min_age = target_days * 0.5  # must be at least half the period old
+
         best = None
         best_diff = None
-        for e in sorted_entries:
+        for e in past_entries:
             try:
                 ed = datetime.strptime(e["d"][:16], "%Y-%m-%d %H:%M")
-                age = (now - ed).total_seconds() / 86400
-                if min_age <= age <= max_age:
-                    diff = abs((ed - tgt).total_seconds())
-                    if best_diff is None or diff < best_diff:
-                        best = e
-                        best_diff = diff
+                age_days = (now - ed).total_seconds() / 86400
+                if age_days < min_age:
+                    continue  # too recent
+                diff = abs((ed - tgt).total_seconds())
+                if best_diff is None or diff < best_diff:
+                    best = e
+                    best_diff = diff
             except: pass
         return best
 
@@ -226,16 +225,15 @@ def calc_chg(cid, price, history):
         if p <= 0: return 0.0, False
         return round((price - p) / p * 100, 2), True
 
-    # Target periods in days
-    r1,  h1   = pct(find_nearest(1))
-    r3,  h3   = pct(find_nearest(3))
-    r7,  h7   = pct(find_nearest(7))
-    r14, h14  = pct(find_nearest(14))
-    r30, h30  = pct(find_nearest(30))
-    r90, h90  = pct(find_nearest(90))
-    r180,h180 = pct(find_nearest(180))
-    r365,h365 = pct(find_nearest(365))
-    r12, h12 = pct(find_nearest(0.5))  # 12h
+    r12, h12  = pct(find(0.5))
+    r1,  h1   = pct(find(1))
+    r3,  h3   = pct(find(3))
+    r7,  h7   = pct(find(7))
+    r14, h14  = pct(find(14))
+    r30, h30  = pct(find(30))
+    r90, h90  = pct(find(90))
+    r180,h180 = pct(find(180))
+    r365,h365 = pct(find(365))
     return (r12,h12, r1,h1, r3,h3, r7,h7, r14,h14, r30,h30, r90,h90, r180,h180, r365,h365)
 
 def get_all_sets():
