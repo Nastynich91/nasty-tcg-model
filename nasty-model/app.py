@@ -202,7 +202,7 @@ def calc_chg(cid, price, history):
         Only returns a result if there's a snapshot at least target_days*0.5 old.
         """
         tgt = now - dt.timedelta(days=target_days)
-        min_age = target_days * 0.5  # must be at least half the period old
+        min_age = target_days * 0.8  # must be at least 80% of the period old
 
         best = None
         best_diff = None
