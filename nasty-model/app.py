@@ -77,7 +77,7 @@ def _restore_from_github(local_path, gh_path):
 _restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
 _restore_from_github(CACHE_FILE,   "nasty-model/data/cards_cache.json")
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v8"
+CACHE_VER    = "pokemontcg_v9"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
@@ -183,42 +183,60 @@ def save_snapshot(cards):
     backup_to_github(HISTORY_FILE, f"nasty-model/{HISTORY_FILE}")
     return history
 
-def calc_chg(cid,price,history):
+def calc_chg(cid, price, history):
+    """
+    Smart price change calculator.
+    For each period, finds the snapshot closest to that period ago.
+    Accepts a snapshot if it falls within 50% of the target window.
+    E.g. for 24h: accepts snapshots between 12h and 36h ago.
+    """
     import datetime as dt
-    entries=history.get(cid,[])
-    if len(entries)<2: return (0.0,False,0.0,False,0.0,False,0.0,False,0.0,False,0.0,False,0.0,False,0.0,False)
-    now=datetime.now()
+    entries = history.get(cid, [])
+    if len(entries) < 2:
+        return (0.0,False)*8
 
-    def find(min_days, max_days):
-        """Find snapshot strictly between min_days and max_days ago."""
-        best=None
-        best_diff=None
-        tgt=now-dt.timedelta(days=(min_days+max_days)/2)
-        for e in entries[:-1]:
+    now = datetime.now()
+    # Sort entries oldest first, exclude the very latest (current)
+    sorted_entries = sorted(entries[:-1], 
+        key=lambda e: e["d"])
+
+    def find_nearest(target_days):
+        tgt = now - dt.timedelta(days=target_days)
+        # Accept window: 50% on each side of target
+        min_age = target_days * 0.5
+        max_age = target_days * 1.5 + 1  # +1 day buffer for gaps
+        
+        best = None
+        best_diff = None
+        for e in sorted_entries:
             try:
-                ed=datetime.strptime(e["d"][:16],"%Y-%m-%d %H:%M")
-                age=(now-ed).total_seconds()/86400
-                if min_days<=age<=max_days:
-                    diff=abs((ed-tgt).total_seconds())
-                    if best_diff is None or diff<best_diff:
-                        best=e; best_diff=diff
+                ed = datetime.strptime(e["d"][:16], "%Y-%m-%d %H:%M")
+                age = (now - ed).total_seconds() / 86400
+                if min_age <= age <= max_age:
+                    diff = abs((ed - tgt).total_seconds())
+                    if best_diff is None or diff < best_diff:
+                        best = e
+                        best_diff = diff
             except: pass
         return best
 
-    def pct(e): 
+    def pct(e):
         if not e: return 0.0, False
-        p=e["p"]
-        return (round((price-p)/p*100,2) if p>0 else 0.0), True
+        p = e["p"]
+        if p <= 0: return 0.0, False
+        return round((price - p) / p * 100, 2), True
 
-    r1,h1   = pct(find(0.3,  4))    # 24h: accept 7h to 4 days
-    r3,h3   = pct(find(2,    6))    # 3j:  accept 2 to 6 days
-    r7,h7   = pct(find(5,    12))   # 7j:  accept 5 to 12 days
-    r14,h14 = pct(find(10,   21))   # 14j
-    r30,h30 = pct(find(20,   50))   # 1M
-    r90,h90 = pct(find(60,   130))  # 3M
-    r180,h180=pct(find(130,  270))  # 6M
-    r365,h365=pct(find(270,  500))  # 1A
-    return (r1,h1,r3,h3,r7,h7,r14,h14,r30,h30,r90,h90,r180,h180,r365,h365)
+    # Target periods in days
+    r1,  h1   = pct(find_nearest(1))
+    r3,  h3   = pct(find_nearest(3))
+    r7,  h7   = pct(find_nearest(7))
+    r14, h14  = pct(find_nearest(14))
+    r30, h30  = pct(find_nearest(30))
+    r90, h90  = pct(find_nearest(90))
+    r180,h180 = pct(find_nearest(180))
+    r365,h365 = pct(find_nearest(365))
+    r12, h12 = pct(find_nearest(0.5))  # 12h
+    return (r12,h12, r1,h1, r3,h3, r7,h7, r14,h14, r30,h30, r90,h90, r180,h180, r365,h365)
 
 def get_all_sets():
     """Fetch ALL sets from pokemontcg.io — returns list of {id, name, releaseDate}"""
@@ -275,7 +293,7 @@ def fetch_set_cards(set_id, set_name, set_year):
                 "number":   c.get("number",""),
                 "img":      imgs.get("large") or imgs.get("small",""),
                 "price":    round(price_usd*USD_CAD,2),
-                "chg1":0.0,"chg3":0.0,"chg7":0.0,"chg14":0.0,"chg30":0.0,"chg90":0.0,"chg180":0.0,"chg365":0.0,
+                "chg12":0.0,"chg1":0.0,"chg3":0.0,"chg7":0.0,"chg14":0.0,"chg30":0.0,"chg90":0.0,"chg180":0.0,"chg365":0.0,"has12":False,"has1":False,"has3":False,"has7":False,"has14":False,"has30":False,"has90":False,"has180":False,"has365":False,
             })
         return results
     except: return []
@@ -302,7 +320,7 @@ with st.sidebar:
     show_day=st.toggle("⚡ Mode Show Day",value=False)
     st.markdown('<span class="sb-section">Période</span>',unsafe_allow_html=True)
     period_map={
-        "24h":"chg1","3 jours":"chg3","7 jours":"chg7","14 jours":"chg14",
+        "12h":"chg12","24h":"chg1","3 jours":"chg3","7 jours":"chg7","14 jours":"chg14",
         "1 mois":"chg30","3 mois":"chg90","6 mois":"chg180","1 an":"chg365"
     }
     period_sel=st.selectbox("",list(period_map.keys()),index=2,label_visibility="collapsed")
@@ -410,10 +428,11 @@ if need_load:
     history=save_snapshot(all_cards)
     for c in all_cards:
         r=calc_chg(c["id"],c["price"],history)
-        c["chg1"]=r[0];c["has1"]=r[1];c["chg3"]=r[2];c["has3"]=r[3]
-        c["chg7"]=r[4];c["has7"]=r[5];c["chg14"]=r[6];c["has14"]=r[7]
-        c["chg30"]=r[8];c["has30"]=r[9];c["chg90"]=r[10];c["has90"]=r[11]
-        c["chg180"]=r[12];c["has180"]=r[13];c["chg365"]=r[14];c["has365"]=r[15]
+        c["chg12"]=r[0];c["has12"]=r[1];c["chg1"]=r[2];c["has1"]=r[3]
+        c["chg3"]=r[4];c["has3"]=r[5];c["chg7"]=r[6];c["has7"]=r[7]
+        c["chg14"]=r[8];c["has14"]=r[9];c["chg30"]=r[10];c["has30"]=r[11]
+        c["chg90"]=r[12];c["has90"]=r[13];c["chg180"]=r[14];c["has180"]=r[15]
+        c["chg365"]=r[16];c["has365"]=r[17]
 
     # Only save if we got MORE cards than before (sanity check)
     old_cache = load_json(CACHE_FILE, {})
@@ -458,10 +477,11 @@ if cards:
 
 for c in cards:
     r=calc_chg(c["id"],c["price"],history)
-    c["chg1"]=r[0];c["has1"]=r[1];c["chg3"]=r[2];c["has3"]=r[3]
-    c["chg7"]=r[4];c["has7"]=r[5];c["chg14"]=r[6];c["has14"]=r[7]
-    c["chg30"]=r[8];c["has30"]=r[9];c["chg90"]=r[10];c["has90"]=r[11]
-    c["chg180"]=r[12];c["has180"]=r[13];c["chg365"]=r[14];c["has365"]=r[15]
+    c["chg12"]=r[0];c["has12"]=r[1];c["chg1"]=r[2];c["has1"]=r[3]
+    c["chg3"]=r[4];c["has3"]=r[5];c["chg7"]=r[6];c["has7"]=r[7]
+    c["chg14"]=r[8];c["has14"]=r[9];c["chg30"]=r[10];c["has30"]=r[11]
+    c["chg90"]=r[12];c["has90"]=r[13];c["chg180"]=r[14];c["has180"]=r[15]
+    c["chg365"]=r[16];c["has365"]=r[17]
 
 df=pd.DataFrame(cards)
 if show_day:        df=df[(df["chg7"]>=10)|(df["price"]>=50)]
@@ -508,8 +528,8 @@ for _,row in df.iterrows():
     else:
         dollar_str=""
     # Build periods inline
-    _pd = [("24h","chg1","has1"),("3j","chg3","has3"),("7j","chg7","has7"),
-           ("14j","chg14","has14"),("1M","chg30","has30"),
+    _pd = [("12h","chg12","has12"),("24h","chg1","has1"),("3j","chg3","has3"),
+           ("7j","chg7","has7"),("14j","chg14","has14"),("1M","chg30","has30"),
            ("3M","chg90","has90"),("6M","chg180","has180"),("1A","chg365","has365")]
     def _pfmt(lbl, ck, hk):
         if not row.get(hk, False):
