@@ -80,7 +80,7 @@ def _restore_from_github(local_path, gh_path):
 _restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
 _restore_from_github(CACHE_FILE,   "nasty-model/data/cards_cache.json")
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v13"
+CACHE_VER    = "pokemontcg_v14"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
