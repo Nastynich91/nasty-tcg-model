@@ -222,7 +222,8 @@ def calc_chg(cid, price, history):
         Only returns a result if there's a snapshot at least target_days*0.5 old.
         """
         tgt = now - dt.timedelta(days=target_days)
-        min_age = target_days * 0.4  # accept snapshot if at least 40% of period old (buffer)
+        # 12h (0.5 days) gets 40% buffer, all longer periods need 80%
+        min_age = target_days * 0.4 if target_days <= 0.6 else target_days * 0.8
 
         best = None
         best_diff = None
