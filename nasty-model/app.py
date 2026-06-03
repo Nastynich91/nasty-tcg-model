@@ -205,60 +205,55 @@ def save_snapshot(cards):
 
 def calc_chg(cid, price, history):
     """
-    Simple: compare latest price to the snapshot closest to N days ago.
-    No windows, no complexity — just find the nearest snapshot to the target date.
-    If no snapshot exists far enough back, return has_data=False.
+    12h  = last snapshot vs second-to-last snapshot (updates 2x/day)
+    24h  = latest vs snapshot ~1 day before latest
+    3j   = latest vs snapshot ~3 days before latest
+    etc.
+    All comparisons use latest snapshot as reference point.
     """
     import datetime as dt
     entries = history.get(cid, [])
     if len(entries) < 2:
-        return (0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False, 0.0,False)
+        return (0.0,False)*9
 
-    now = datetime.now()
-    past_entries = entries[:-1]  # all except most recent
+    # Sort by date
+    sorted_e = sorted(entries, key=lambda e: e["d"])
+    latest_time = datetime.strptime(sorted_e[-1]["d"][:16], "%Y-%m-%d %H:%M")
 
-    def find(target_days):
-        """Find snapshot closest to target_days ago.
-        Only returns a result if there's a snapshot at least target_days*0.5 old.
-        """
-        tgt = now - dt.timedelta(days=target_days)
-        # 12h: accept anything 3h-24h ago
-        # Others: must be 80%+ of target period
-        if target_days <= 0.6:
-            min_age, max_age = 0.125, 1.0
-        else:
-            min_age, max_age = target_days * 0.8, 9999
+    def pct(old_p):
+        if old_p is None or old_p <= 0: return 0.0, False
+        return round((price - old_p) / old_p * 100, 2), True
 
-        best = None
-        best_diff = None
-        for e in past_entries:
+    # 12h: second-to-last snapshot
+    def get_12h():
+        return sorted_e[-2]["p"] if len(sorted_e) >= 2 else None
+
+    # Nd: snapshot closest to N days BEFORE the latest snapshot
+    # Must be at least 80% of N days before latest
+    def get_nd(days):
+        target = latest_time - dt.timedelta(days=days)
+        min_gap = days * 0.8
+        best_p, best_diff = None, None
+        for e in sorted_e[:-1]:
             try:
                 ed = datetime.strptime(e["d"][:16], "%Y-%m-%d %H:%M")
-                age_days = (now - ed).total_seconds() / 86400
-                if age_days < min_age or age_days > max_age:
-                    continue  # too recent
-                diff = abs((ed - tgt).total_seconds())
+                gap = (latest_time - ed).total_seconds() / 86400
+                if gap < min_gap: continue
+                diff = abs((ed - target).total_seconds())
                 if best_diff is None or diff < best_diff:
-                    best = e
-                    best_diff = diff
+                    best_p = e["p"]; best_diff = diff
             except: pass
-        return best
+        return best_p
 
-    def pct(e):
-        if not e: return 0.0, False
-        p = e["p"]
-        if p <= 0: return 0.0, False
-        return round((price - p) / p * 100, 2), True
-
-    r12, h12  = pct(find(0.5))
-    r1,  h1   = pct(find(1))
-    r3,  h3   = pct(find(3))
-    r7,  h7   = pct(find(7))
-    r14, h14  = pct(find(14))
-    r30, h30  = pct(find(30))
-    r90, h90  = pct(find(90))
-    r180,h180 = pct(find(180))
-    r365,h365 = pct(find(365))
+    r12,h12   = pct(get_12h())
+    r1,h1     = pct(get_nd(1))
+    r3,h3     = pct(get_nd(3))
+    r7,h7     = pct(get_nd(7))
+    r14,h14   = pct(get_nd(14))
+    r30,h30   = pct(get_nd(30))
+    r90,h90   = pct(get_nd(90))
+    r180,h180 = pct(get_nd(180))
+    r365,h365 = pct(get_nd(365))
     return (r12,h12, r1,h1, r3,h3, r7,h7, r14,h14, r30,h30, r90,h90, r180,h180, r365,h365)
 
 def get_all_sets():
