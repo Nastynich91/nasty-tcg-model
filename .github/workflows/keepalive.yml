@@ -2,20 +2,23 @@ name: Keepalive & Snapshot
 
 on:
   schedule:
-    - cron: "0 6 * * *"
-    - cron: "0 18 * * *"
+    - cron: "0 6 * * *"   # 6h UTC = 2h AM Montreal
+    - cron: "0 18 * * *"  # 18h UTC = 2h PM Montreal
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Wake up Streamlit app
+      - name: Wake Streamlit and trigger snapshot
         run: |
-          for i in 1 2 3; do
-            echo "Ping attempt $i"
-            curl -s -o /dev/null -w "HTTP %{http_code}\n" --max-time 90 \
-              "https://nasty-tcg-model-9evovtum4mtmmeappteoruq.streamlit.app" || true
-            sleep 15
+          URL="https://nasty-tcg-model-9evovtum4mtmmeappteoruq.streamlit.app"
+          
+          # Ping 5 times over 3 minutes to make sure app wakes up and saves snapshot
+          for i in 1 2 3 4 5; do
+            echo "=== Ping $i/5 ==="
+            curl -s -o /dev/null -w "HTTP %{http_code}\n" --max-time 60 "$URL" || true
+            echo "Waiting 40s..."
+            sleep 40
           done
-          echo "Done - snapshot triggered"
+          echo "Done - snapshot should be saved"
