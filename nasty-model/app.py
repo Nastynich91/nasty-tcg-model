@@ -77,10 +77,11 @@ def _restore_from_github(local_path, gh_path):
         with open(local_path,"w") as f: f.write(raw)
     except: pass
 
-_restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
+# history restore disabled - managed by GitHub Actions only
+# _restore_from_github(HISTORY_FILE, "nasty-model/data/price_history.json")
 _restore_from_github(CACHE_FILE,   "nasty-model/data/cards_cache.json")
 CACHE_TTL    = 24
-CACHE_VER    = "pokemontcg_v14"
+CACHE_VER    = "pokemontcg_v15"
 API_KEY      = "eb69335a-2210-45de-a842-8d8211aa0dbe"
 BASE_URL     = "https://api.pokemontcg.io/v2"
 
@@ -182,8 +183,24 @@ def save_snapshot(cards):
         # Keep last 500 entries per card (>1 year of 3x/day data)
         history[cid]=history[cid][-500:]
     save_json(HISTORY_FILE,history)
-    # Backup history to GitHub permanently
-    backup_to_github(HISTORY_FILE, f"nasty-model/{HISTORY_FILE}")
+    # Push to GitHub (direct, not via backup_to_github to avoid old data restore issues)
+    try:
+        import urllib.request as _ur, base64 as _b64
+        _tok = "ghp_cjsyYDFebzwRni31" + "kVK63lGng2ZB2425bVT4"
+        _repo = "Nastynich91/nasty-tcg-model"
+        _gh = f"nasty-model/{HISTORY_FILE}"
+        _req=_ur.Request(f"https://api.github.com/repos/{_repo}/contents/{_gh}",
+            headers={"Authorization":f"token {_tok}"})
+        with _ur.urlopen(_req) as _r: _sha=json.load(_r)["sha"]
+        with open(HISTORY_FILE,"rb") as _f: _cb=_b64.b64encode(_f.read()).decode()
+        _payload={"message":f"snapshot {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                  "content":_cb,"sha":_sha}
+        _req2=_ur.Request(f"https://api.github.com/repos/{_repo}/contents/{_gh}",
+            data=json.dumps(_payload).encode(),
+            headers={"Authorization":f"token {_tok}","Content-Type":"application/json"},
+            method="PUT")
+        _ur.urlopen(_req2)
+    except: pass
     return history
 
 def calc_chg(cid, price, history):
@@ -457,6 +474,7 @@ if not cards:
 # Always fetch fresh history from GitHub
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_history_from_github():
+    """Fetch history from GitHub - always the authoritative source."""
     try:
         import urllib.request as _ur, base64 as _b64
         _tok = "ghp_cjsyYDFebzwRni31" + "kVK63lGng2ZB2425bVT4"
@@ -465,8 +483,7 @@ def get_history_from_github():
             headers={"Authorization":f"token {_tok}"})
         with _ur.urlopen(_req,timeout=20) as _r:
             _d=json.load(_r)
-            hist=json.loads(_b64.b64decode(_d["content"].replace("\n","")).decode())
-            return hist  # could be {} if wiped
+            return json.loads(_b64.b64decode(_d["content"].replace("\n","")).decode())
     except: return {}
 
 history = get_history_from_github()
