@@ -564,7 +564,12 @@ for _,row in df.iterrows():
     def _pfmt(lbl, ck, hk):
         if not row.get(hk, False):
             return f'<span style="color:#334155;font-size:11px">{lbl} <span style="color:#1e293b">ND</span></span>'
-        return f'<span style="font-size:11px">{lbl} {fmt_chg(row.get(ck,0))}</span>'
+        val = row.get(ck, 0)
+        if abs(val) < 0.05:
+            chg_str = '<span style="color:#64748b">0.0%</span>'
+        else:
+            chg_str = fmt_chg(val)
+        return f'<span style="font-size:11px">{lbl} {chg_str}</span>'
     periods_html = " ".join(_pfmt(lbl,ck,hk) for lbl,ck,hk in _pd)
     img_html=(f'<img src="{row["img"]}" class="card-thumb" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
               f'<div class="card-thumb-ph" style="display:none">🃏</div>') if row.get("img") else '<div class="card-thumb-ph">🃏</div>'
