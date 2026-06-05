@@ -229,16 +229,18 @@ def calc_chg(cid, price, history):
         return sorted_e[-2]["p"] if len(sorted_e) >= 2 else None
 
     # Nd: snapshot closest to N days BEFORE the latest snapshot
-    # Must be at least 80% of N days before latest
+    # min_gap: must be at least N*0.8 days before latest
+    # max_gap: must not be more than N*1.5 days before latest (avoid using too-old snapshot)
     def get_nd(days):
         target = latest_time - dt.timedelta(days=days)
         min_gap = days * 0.8
+        max_gap = days * 1.5 + 1  # allow some buffer for missed snapshots
         best_p, best_diff = None, None
         for e in sorted_e[:-1]:
             try:
                 ed = datetime.strptime(e["d"][:16], "%Y-%m-%d %H:%M")
                 gap = (latest_time - ed).total_seconds() / 86400
-                if gap < min_gap: continue
+                if gap < min_gap or gap > max_gap: continue
                 diff = abs((ed - target).total_seconds())
                 if best_diff is None or diff < best_diff:
                     best_p = e["p"]; best_diff = diff
