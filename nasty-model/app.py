@@ -335,7 +335,7 @@ with st.sidebar:
     show_day=st.toggle("⚡ Mode Show Day",value=False)
     st.markdown('<span class="sb-section">Période</span>',unsafe_allow_html=True)
     period_map={
-        "12h":"chg12","24h":"chg1","3 jours":"chg3","7 jours":"chg7","14 jours":"chg14",
+        "24h":"chg1","3 jours":"chg3","7 jours":"chg7","14 jours":"chg14",
         "1 mois":"chg30","3 mois":"chg90","6 mois":"chg180","1 an":"chg365"
     }
     period_sel=st.selectbox("",list(period_map.keys()),index=2,label_visibility="collapsed")
@@ -555,7 +555,7 @@ for _,row in df.iterrows():
     else:
         dollar_str=""
     # Build periods inline
-    _pd = [("12h","chg12","has12"),("24h","chg1","has1"),("3j","chg3","has3"),
+    _pd = [("24h","chg1","has1"),("3j","chg3","has3"),
            ("7j","chg7","has7"),("14j","chg14","has14"),("1M","chg30","has30"),
            ("3M","chg90","has90"),("6M","chg180","has180"),("1A","chg365","has365")]
     def _pfmt(lbl, ck, hk):
