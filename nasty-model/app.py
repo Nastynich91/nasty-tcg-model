@@ -205,57 +205,44 @@ def save_snapshot(cards):
 
 def calc_chg(cid, price, history):
     """
-    12h  = last snapshot vs second-to-last snapshot (updates 2x/day)
-    24h  = latest vs snapshot ~1 day before latest
-    3j   = latest vs snapshot ~3 days before latest
-    etc.
-    All comparisons use latest snapshot as reference point.
+    2 snapshots/day at 6h and 18h UTC.
+    Each period = fixed number of snapshots back:
+    12h  = [-1] vs [-2]   (1 snapshot back)
+    24h  = [-1] vs [-3]   (2 snapshots back)
+    3j   = [-1] vs [-7]   (6 snapshots back)
+    7j   = [-1] vs [-15]  (14 snapshots back)
+    14j  = [-1] vs [-29]  (28 snapshots back)
+    1M   = [-1] vs [-61]  (60 snapshots back)
+    3M   = [-1] vs [-181] (180 snapshots back)
+    6M   = [-1] vs [-361] (360 snapshots back)
+    1A   = [-1] vs [-731] (730 snapshots back)
     """
-    import datetime as dt
     entries = history.get(cid, [])
     if len(entries) < 2:
         return (0.0,False)*9
 
-    # Sort by date
     sorted_e = sorted(entries, key=lambda e: e["d"])
-    latest_time = datetime.strptime(sorted_e[-1]["d"][:16], "%Y-%m-%d %H:%M")
+    current = sorted_e[-1]["p"]
+
+    def get(idx):
+        """Get price at index idx from the end. idx=2 means second-to-last."""
+        if len(sorted_e) >= idx:
+            return sorted_e[-idx]["p"]
+        return None
 
     def pct(old_p):
         if old_p is None or old_p <= 0: return 0.0, False
-        return round((price - old_p) / old_p * 100, 2), True
+        return round((current - old_p) / old_p * 100, 2), True
 
-    # 12h: second-to-last snapshot
-    def get_12h():
-        return sorted_e[-2]["p"] if len(sorted_e) >= 2 else None
-
-    # Nd: snapshot closest to N days BEFORE the latest snapshot
-    # min_gap: must be at least N*0.8 days before latest
-    # max_gap: must not be more than N*1.5 days before latest (avoid using too-old snapshot)
-    def get_nd(days):
-        target = latest_time - dt.timedelta(days=days)
-        min_gap = days * 0.8
-        max_gap = days * 1.5 + 1  # allow some buffer for missed snapshots
-        best_p, best_diff = None, None
-        for e in sorted_e[:-1]:
-            try:
-                ed = datetime.strptime(e["d"][:16], "%Y-%m-%d %H:%M")
-                gap = (latest_time - ed).total_seconds() / 86400
-                if gap < min_gap or gap > max_gap: continue
-                diff = abs((ed - target).total_seconds())
-                if best_diff is None or diff < best_diff:
-                    best_p = e["p"]; best_diff = diff
-            except: pass
-        return best_p
-
-    r12,h12   = pct(get_12h())
-    r1,h1     = pct(get_nd(1))
-    r3,h3     = pct(get_nd(3))
-    r7,h7     = pct(get_nd(7))
-    r14,h14   = pct(get_nd(14))
-    r30,h30   = pct(get_nd(30))
-    r90,h90   = pct(get_nd(90))
-    r180,h180 = pct(get_nd(180))
-    r365,h365 = pct(get_nd(365))
+    r12, h12  = pct(get(2))    # 1 snapshot back
+    r1,  h1   = pct(get(3))    # 2 snapshots back
+    r3,  h3   = pct(get(7))    # 6 snapshots back
+    r7,  h7   = pct(get(15))   # 14 snapshots back
+    r14, h14  = pct(get(29))   # 28 snapshots back
+    r30, h30  = pct(get(61))   # 60 snapshots back
+    r90, h90  = pct(get(181))  # 180 snapshots back
+    r180,h180 = pct(get(361))  # 360 snapshots back
+    r365,h365 = pct(get(731))  # 730 snapshots back
     return (r12,h12, r1,h1, r3,h3, r7,h7, r14,h14, r30,h30, r90,h90, r180,h180, r365,h365)
 
 def get_all_sets():
