@@ -230,11 +230,19 @@ def calc_chg(cid, price, history):
             return sorted_e[-idx]["p"]
         return None
 
+    def get_last_changed():
+        """For 12h: find most recent snapshot where price differs from current."""
+        current_p = sorted_e[-1]["p"]
+        for e in reversed(sorted_e[:-1]):
+            if e["p"] != current_p:
+                return e["p"]
+        return None  # all same price = truly stable
+
     def pct(old_p):
         if old_p is None or old_p <= 0: return 0.0, False
         return round((current - old_p) / old_p * 100, 2), True
 
-    r12, h12  = pct(get(2))    # 1 snapshot back
+    r12, h12  = pct(get_last_changed())  # last price change
     r1,  h1   = pct(get(3))    # 2 snapshots back
     r3,  h3   = pct(get(7))    # 6 snapshots back
     r7,  h7   = pct(get(15))   # 14 snapshots back
